@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="mpGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b" />
+      <stop offset="100%" stop-color="#022c22" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+  <!-- Base circle -->
+  <circle cx="50" cy="50" r="46" fill="url(#mpGrad)" stroke="url(#goldGrad)" stroke-width="2.5" />
+  <circle cx="50" cy="50" r="40" fill="none" stroke="#d97706" stroke-width="0.75" stroke-dasharray="2,2" />
+  
+  <!-- Civic Building / Pillars -->
+  <path d="M 50 18 L 76 29 L 24 29 Z" fill="#f8fafc" />
+  <rect x="25" y="31" width="50" height="3" fill="#f59e0b" rx="1" />
+  
+  <!-- Four Architectural Columns -->
+  <rect x="28" y="36" width="6" height="28" fill="#f8fafc" rx="1" />
+  <rect x="40" y="36" width="6" height="28" fill="#f8fafc" rx="1" />
+  <rect x="54" y="36" width="6" height="28" fill="#f8fafc" rx="1" />
+  <rect x="66" y="36" width="6" height="28" fill="#f8fafc" rx="1" />
+  
+  <!-- Pedestal steps -->
+  <rect x="23" y="66" width="54" height="4" fill="#f59e0b" rx="1" />
+  <rect x="19" y="72" width="62" height="4" fill="#f8fafc" rx="1" />
+  
+  <!-- Blueprint compass / Ruler overlay motif at bottom center -->
+  <circle cx="50" cy="50" r="8" fill="#064e3b" stroke="#f59e0b" stroke-width="1.5" />
+  <path d="M 46 50 L 54 50 M 50 46 L 50 54" stroke="#f8fafc" stroke-width="1.5" stroke-linecap="round" />
+  
+  <!-- Small Stars on flanks -->
+  <circle cx="15" cy="50" r="1.5" fill="#f59e0b" />
+  <circle cx="85" cy="50" r="1.5" fill="#f59e0b" />
+</svg>
