@@ -1,0 +1,8 @@
+# Local configuration and secrets (backend/.env is the only env file the backend reads)
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
