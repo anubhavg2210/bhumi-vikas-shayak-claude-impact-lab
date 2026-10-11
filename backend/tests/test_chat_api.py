@@ -94,6 +94,16 @@ def test_cors_allows_configured_dev_origin(client):
     assert r.headers.get("access-control-allow-origin") == "http://localhost:5173"
 
 
+def test_cors_allows_vercel_origin(client):
+    r = client.options("/api/chat", headers={
+        "Origin": "https://bhumi-vikas-shayak-claude-imp-git-a3ea33-anubhavg2210s-projects.vercel.app",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type",
+    })
+    assert r.status_code == 200
+    assert r.headers.get("access-control-allow-origin") == "https://bhumi-vikas-shayak-claude-imp-git-a3ea33-anubhavg2210s-projects.vercel.app"
+
+
 def test_cors_rejects_unknown_origin(client):
     r = client.options("/api/chat", headers={
         "Origin": "https://evil.example.com",

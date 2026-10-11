@@ -8,13 +8,17 @@ This is the REST contract for the frontend. Field names and types are stable. Ch
 
 ## CORS
 
-The allowed origins come from `CORS_ORIGINS` in `backend/.env`, given as a comma-separated list or a JSON array. The defaults are:
+The allowed origins come from `CORS_ORIGINS` in `backend/.env`, given as a comma-separated list or a JSON array. In addition, `CORS_ORIGIN_REGEX` allows matching origin patterns (defaults to matching `*.vercel.app` preview and production domains). The defaults are:
 
 ```
 http://localhost:3000, http://localhost:5173, http://127.0.0.1:3000, http://127.0.0.1:5173
 ```
+Regex pattern:
+```
+^https:\/\/([a-zA-Z0-9-]+\.)*vercel\.app$
+```
 
-CORS allows the `GET`, `POST` and `OPTIONS` methods and the `Content-Type` and `Accept` request headers. Credentials (cookies) are not used. There is no wildcard origin, so if your dev server runs on another port, add it to `CORS_ORIGINS`.
+CORS allows `GET`, `POST`, and `OPTIONS` methods and all standard request headers. Credentials (cookies) are not used. On deployment platforms like Render, set `CORS_ORIGINS=*` or specify custom domains if hosted outside Vercel/localhost.
 
 ---
 

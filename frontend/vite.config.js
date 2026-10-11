@@ -18,7 +18,11 @@ export default defineConfig(({ mode }) => {
     },
     test: {
       environment: 'jsdom',
-      globals: true
+      globals: true,
+      env: {
+        VITE_API_BASE_URL: '',
+        VITE_USE_MOCK: 'false'
+      }
     }
   }
 })

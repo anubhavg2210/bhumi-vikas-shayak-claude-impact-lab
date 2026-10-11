@@ -19,6 +19,7 @@ DEFAULT_CORS_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://127.0.0.1:5173",
 ]
+DEFAULT_CORS_ORIGIN_REGEX = r"^https:\/\/([a-zA-Z0-9-]+\.)*vercel\.app$"
 
 
 class Settings(BaseSettings):
@@ -38,6 +39,8 @@ class Settings(BaseSettings):
     PORT: int = 8000
     # Comma-separated list or JSON array. A wildcard is never added implicitly.
     CORS_ORIGINS: Annotated[List[str], NoDecode] = list(DEFAULT_CORS_ORIGINS)
+    # Regex pattern matching allowed origins (allows Vercel preview & production deployments by default).
+    CORS_ORIGIN_REGEX: Optional[str] = DEFAULT_CORS_ORIGIN_REGEX
 
     # Legal document collection metadata
     DOCUMENT_COVERAGE_DATE: str = "2025-03-06"
@@ -100,7 +103,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "CEREBRAS_API_KEY", "CEREBRAS_REASONING_EFFORT", "CEREBRAS_TEMPERATURE",
-        "GEMINI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", mode="before",
+        "GEMINI_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CORS_ORIGIN_REGEX", mode="before",
     )
     @classmethod
     def blank_to_none(cls, v):

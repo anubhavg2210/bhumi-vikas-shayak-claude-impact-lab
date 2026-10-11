@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
     logger.info(
         f"Ready: {len(app_context.rag_service.doc_store.get_all_rules())} rules loaded; "
         f"LLM provider: {provider_label(app_context.rag_service.llm_provider)}; "
-        f"CORS origins: {settings.CORS_ORIGINS}"
+        f"CORS origins: {settings.CORS_ORIGINS}; CORS regex: {settings.CORS_ORIGIN_REGEX}"
     )
     yield
     logger.info("Shutting down Bhumi Vikas Sahayak backend.")
@@ -74,9 +74,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=settings.CORS_ORIGIN_REGEX,
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type", "Accept"],
+    allow_headers=["*"],
 )
 
 

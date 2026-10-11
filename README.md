@@ -59,4 +59,4 @@ Frontend connects to the backend at `POST /api/chat` (and `POST /api/documents/a
 | Root Directory | *(empty: repository root)* |
 | Build Command | `pip install -r requirements.txt` |
 | Start Command | `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT` |
-| Environment | `LLM_PROVIDER=cerebras`, `CEREBRAS_API_KEY=...` (`backend/.env` is not committed) |
+| Environment | `LLM_PROVIDER=cerebras`, `CEREBRAS_API_KEY=...`, `CORS_ORIGINS=*` (or leave empty to allow `*.vercel.app` by default) |
