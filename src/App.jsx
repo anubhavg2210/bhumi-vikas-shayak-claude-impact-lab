@@ -1,0 +1,210 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import Header from './components/Header';
+import RegulatoryNoticeBanner from './components/RegulatoryNoticeBanner';
+import DashboardHero from './components/DashboardHero';
+import ExamplePrompts from './components/ExamplePrompts';
+import ChatContainer from './components/ChatContainer';
+import ChatInput from './components/ChatInput';
+import CitationViewerModal from './components/CitationViewerModal';
+import { sendChatQuery } from './services/chatApi';
+import { translations } from './i18n/translations';
+import './App.css';
+
+export default function App() {
+  // 1. Language state: English or Hindi
+  const [language, setLanguage] = useState(() => {
+    return localStorage.getItem('bvs_language') || 'en';
+  });
+
+  // 2. Chat history messages state
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('bvs_messages');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // 3. Loading & error states
+  const [isLoading, setIsLoading] = useState(false);
+  const [lastQuery, setLastQuery] = useState('');
+
+  // 4. Mock mode toggle: whether to force offline mock data or call real backend
+  const [isMockMode, setIsMockMode] = useState(() => {
+    const envMock = import.meta.env.VITE_USE_MOCK === 'true';
+    const stored = localStorage.getItem('bvs_use_mock');
+    return stored !== null ? stored === 'true' : envMock;
+  });
+
+  // 5. Active citation for the modal viewer
+  const [selectedCitation, setSelectedCitation] = useState(null);
+
+  // Sync language to local storage
+  useEffect(() => {
+    localStorage.setItem('bvs_language', language);
+    document.documentElement.lang = language;
+  }, [language]);
+
+  // Sync messages to session storage
+  useEffect(() => {
+    try {
+      sessionStorage.setItem('bvs_messages', JSON.stringify(messages));
+    } catch (e) {
+      console.warn('Could not persist messages to sessionStorage', e);
+    }
+  }, [messages]);
+
+  // Sync mock mode preference
+  const handleToggleMockMode = useCallback(() => {
+    setIsMockMode((prev) => {
+      const next = !prev;
+      localStorage.setItem('bvs_use_mock', String(next));
+      return next;
+    });
+  }, []);
+
+  // Handle submitting a question (either from hero input, example cards, or chat input)
+  const handleSendMessage = useCallback(
+    async (questionText) => {
+      if (!questionText || !questionText.trim() || isLoading) return;
+
+      const userMessage = {
+        role: 'user',
+        content: questionText.trim(),
+        timestamp: new Date().toISOString()
+      };
+
+      setMessages((prev) => [...prev, userMessage]);
+      setLastQuery(questionText.trim());
+      setIsLoading(true);
+
+      try {
+        const response = await sendChatQuery({
+          question: questionText.trim(),
+          language,
+          useMock: isMockMode
+        });
+
+        const assistantMessage = {
+          role: 'assistant',
+          content: response.answer,
+          citations: response.citations || [],
+          confidence: response.confidence || 'medium',
+          insufficient_evidence: Boolean(response.insufficient_evidence),
+          document_coverage_date: response.document_coverage_date || '2025-03-06',
+          isMockFallback: Boolean(response.isMockFallback),
+          timestamp: new Date().toISOString()
+        };
+
+        setMessages((prev) => [...prev, assistantMessage]);
+      } catch (error) {
+        console.error('Error during chat query:', error);
+        const t = translations[language];
+        let errorMessageText = t.errorGenericTitle;
+
+        if (error.isTimeout) {
+          errorMessageText = t.errorTimeout;
+        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+          errorMessageText = t.errorNetwork;
+        } else {
+          errorMessageText = `${t.errorGenericTitle}: ${error.message}`;
+        }
+
+        const errorMessage = {
+          role: 'assistant',
+          content: errorMessageText,
+          isError: true,
+          timestamp: new Date().toISOString()
+        };
+
+        setMessages((prev) => [...prev, errorMessage]);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [isLoading, language, isMockMode]
+  );
+
+  // Retry query handler
+  const handleRetry = useCallback(
+    (messageIndex) => {
+      if (lastQuery) {
+        // Remove error message if requested
+        if (messageIndex !== undefined) {
+          setMessages((prev) => prev.filter((_, idx) => idx !== messageIndex));
+        }
+        handleSendMessage(lastQuery);
+      }
+    },
+    [lastQuery, handleSendMessage]
+  );
+
+  // Clear session to return to fresh Dashboard
+  const handleClearSession = useCallback(() => {
+    setMessages([]);
+    setLastQuery('');
+    sessionStorage.removeItem('bvs_messages');
+  }, []);
+
+  return (
+    <div className="app-wrapper">
+      {/* Header with civic branding, language selector, mock toggle */}
+      <Header
+        language={language}
+        onLanguageChange={setLanguage}
+        onClearSession={handleClearSession}
+        isMockMode={isMockMode}
+        onToggleMockMode={handleToggleMockMode}
+        hasMessages={messages.length > 0}
+      />
+
+      {/* Statutory Coverage Notice Banner */}
+      <RegulatoryNoticeBanner language={language} />
+
+      {/* Main Content Area */}
+      <main className="main-content" id="main-content">
+        {messages.length === 0 ? (
+          // Dashboard View: Hero with Main Input, Regulatory Stats, Example Prompts
+          <>
+            <DashboardHero
+              language={language}
+              onSubmitQuery={handleSendMessage}
+              isLoading={isLoading}
+            />
+            <ExamplePrompts
+              language={language}
+              onSelectExample={handleSendMessage}
+              isLoading={isLoading}
+            />
+          </>
+        ) : (
+          // Active Consultation Chat View
+          <>
+            <ChatContainer
+              messages={messages}
+              isLoading={isLoading}
+              language={language}
+              onInspectCitation={setSelectedCitation}
+              onRetry={handleRetry}
+            />
+            <ChatInput
+              language={language}
+              onSendMessage={handleSendMessage}
+              isLoading={isLoading}
+            />
+          </>
+        )}
+      </main>
+
+      {/* Citation Inspector Modal */}
+      {selectedCitation && (
+        <CitationViewerModal
+          citation={selectedCitation}
+          language={language}
+          onClose={() => setSelectedCitation(null)}
+        />
+      )}
+    </div>
+  );
+}
