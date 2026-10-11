@@ -84,7 +84,18 @@ The mocked tests run the real `openai` SDK against an `httpx2.MockTransport`. Th
 
 ### 5. Troubleshooting
 
-If Cerebras fails, `/api/chat` still returns `200`. The answer then starts with "The AI answer service is currently unavailable…", `confidence` is `"low"`, and the response contains only verified source passages, so nothing is generated. No other provider is tried. The server log names the cause with a `reason` code:
+If Cerebras fails, `/api/chat` still returns `200`. The answer then starts with "The AI answer service is currently unavailable…", or with "The AI service has reached its usage limit…" for rate limits. `confidence` is `"low"`, and the response contains only verified source passages, so nothing is generated. No other provider is tried. The server log names the cause with a `reason` code.
+
+**Rate limits are the most likely failure.** The key used during development reported these limits in its response headers (checked 2026-10-11):
+
+| Limit | Value |
+|---|---|
+| Requests | 5 per minute, 150 per hour, 2,400 per day |
+| Tokens | 30,000 per minute |
+
+A chat question costs 1 request. A document upload costs 1 request plus 1 per page that needs OCR (at most `UPLOAD_MAX_OCR_PAGES`, default 3).
+
+When Cerebras returns a long `retry-after` (about 60 s once the per-minute quota is used up), the backend answers immediately with the fallback rather than holding the request. The worst case per answer is (2 retries + 1) × 20 s + 2 × 5 s = 70 s, which stays below the frontend's 90 s timeout.
 
 | Log `reason` | Typical cause | Fix |
 |---|---|---|
@@ -92,13 +103,48 @@ If Cerebras fails, `/api/chat` still returns `200`. The answer then starts with 
 | `auth` (401/403) | The key is wrong, revoked, or has no access to the model | Create a new key and check that it was copied without spaces |
 | `model_not_found` (404) | `CEREBRAS_MODEL` is not available to your account | Run `python -m backend.app.tools.check_cerebras` and pick a listed ID |
 | `bad_request` (400/422) | The model rejects a parameter (`response_format`, `reasoning_effort`, `temperature`) | Clear `CEREBRAS_REASONING_EFFORT` and `CEREBRAS_TEMPERATURE`, or try another model |
-| `rate_limited` (429) | The per-minute or daily quota was exceeded, even after SDK retries | Wait, lower the request rate, or upgrade the plan |
+| `rate_limited` (429) | The per-minute, hourly or daily quota was used up (`code=request_quota_exceeded`) | Wait a minute, send fewer requests, or upgrade the plan |
 | `billing` (402) | A payment or plan problem | Check billing in the Cerebras console |
-| `timeout` / `network` | Slow responses or no connectivity to `api.cerebras.ai` | Check the network or proxy; raise `LLM_TIMEOUT_SECONDS` |
+| `timeout` / `network` | Slow responses or no connectivity to `api.cerebras.ai` | Check the network or proxy; raise `CEREBRAS_TIMEOUT_SECONDS` |
 | `truncated` | The output hit `CEREBRAS_MAX_COMPLETION_TOKENS`, which includes reasoning | Raise the cap or lower `CEREBRAS_REASONING_EFFORT` |
 | `server_error` (5xx) | A Cerebras-side problem | Retry later |
 
 Log lines include the HTTP status, the Cerebras error code and the request ID, but never the key or the provider's raw error text.
+
+## Document upload (`POST /api/documents/analyze`)
+
+A user can attach their own document, such as a building plan, application, notice or letter, and ask about it. The backend reads the document and answers against the rules using the same retrieval, citation checks and uncertainty handling as chat. Uploaded documents are **never stored** and are **not** added to the rule database.
+
+**Reading the document** (`services/document_reader.py`):
+
+| Input | How it is read |
+|---|---|
+| Digital PDF | The PDF's text layer (`pypdf`). |
+| Scanned PDF page, or a page whose text layer is in the legacy Kruti Dev Hindi font or has broken characters | The page is rendered with `pypdfium2` and read by OCR. |
+| PNG, JPEG or WebP photo | OCR. |
+| Plain text (UTF-8) | Read as-is. |
+
+OCR uses Cerebras vision (`CEREBRAS_VISION_MODEL`, default `qwen-3.8-27b`; a live test on 2026-10-11 confirmed this model accepts images on the development key). AI-based OCR can misread text: one test image produced "सुड़क" for "सड़क". So OCR results are labelled `ocr_is_generative: true`, and the answer tells the user to check figures against their original.
+
+Safety measures:
+- The file type is detected from the content, not the extension.
+- Limits: `UPLOAD_MAX_BYTES` (10 MB), `UPLOAD_MAX_PAGES` (30), `UPLOAD_MAX_OCR_PAGES` (3), `UPLOAD_MAX_TEXT_CHARS` (24,000). Images over 40 MP and password-protected PDFs are rejected.
+- Everything is processed in memory.
+
+**Answering:**
+- Rule passages are retrieved for both the question and the document's own words. Bare numbers are left out of the document search, because they made unrelated documents, such as a cricket scorecard, match rule tables.
+- The model receives the document fenced as `<untrusted_uploaded_document>`. It is told never to call a plan approved, compliant or rejected, in English or Hindi.
+- Statements about the user's document come back as `document_quotes`, each verified verbatim against the extracted text of the stated page.
+- Figures taken from the user's document are allowed in the answer. Figures attributed to the rules must still appear in the cited rule excerpts.
+
+Test it:
+```bash
+curl -s -X POST localhost:8000/api/documents/analyze \
+     -F "file=@plan.pdf" -F "question=Is the proposed front open space enough?" -F "language=en"
+curl -s localhost:8000/api/documents/limits
+```
+
+The frontend attaches files with the paperclip button in either input box.
 
 ## Other providers
 
@@ -120,10 +166,11 @@ If `LLM_PROVIDER` is set to an unknown value, startup fails with a clear error. 
 python -m pytest backend/tests -q
 ```
 
-The suite has 208 tests and runs in about 2 seconds. It makes no network calls and needs no API key. LLM behaviour is simulated with a scripted `MockLLMProvider` whose responses quote real excerpts from the data. HTTP providers are exercised through `httpx.MockTransport`, and Cerebras through `httpx2.MockTransport` with the real `openai` SDK.
+The suite has 265 tests and runs in about 3 seconds. It makes no network calls and needs no API key. The document-upload tests switch real OCR off, even when `backend/.env` holds a Cerebras key. LLM behaviour is simulated with a scripted `MockLLMProvider` whose responses quote real excerpts from the data. HTTP providers are exercised through `httpx.MockTransport`, and Cerebras through `httpx2.MockTransport` with the real `openai` SDK.
 
 | File | What it covers |
 |---|---|
+| `test_document_upload.py` | Reading digital and scanned PDFs, images and text; limits and rejections (type, size, password, pages); legacy-font and damaged-text-layer detection; OCR request shape; document-quote verification; injection inside documents; the `/api/documents/*` endpoints |
 | `test_cerebras_provider.py` | Cerebras request shape, errors (missing key, 401/403/404/429/5xx, timeout, network), citation construction from retrieval records, no model call without evidence, API and health compatibility |
 | `test_chat_api.py` | Response contract, invalid input (422s), CORS allow and deny, no leaked 500 details |
 | `test_citation_validator.py` | Verbatim matching, tampered figures, wrong rule attribution, page resolution (including excerpts that cross a page break) |
@@ -169,5 +216,6 @@ To register another verified amendment, add a `KnownAmendment` to `services/cove
 
 - **Hindi source text.** The Hindi PDF uses a legacy Kruti Dev font encoding: text extraction returns Latin glyphs such as `fu;e` for नियम, with no Unicode Devanagari. It is therefore not indexed. Hindi questions are answered from the English text, and excerpts are quoted in English.
 - **Retrieval-only mode** cannot judge relevance as well as an LLM. It only serves passages above a score floor, and for some Hindi questions the best passage is not ranked first (e.g. sample question 14 ranks Rule 57 above Rule 56).
-- **Tables are flattened** in the source data. Excerpts from tables keep their values but lose column alignment, so check figures from tables against the PDF page given in the citation.
+- **Tables are flattened** in the source data, so cells from neighbouring columns interleave. When a model quotes one table cell, the validator accepts it only as at most 3 close, ordered, verbatim fragments; the excerpt is shown as those fragments joined by "…", and confidence is capped at `medium`. Check figures from tables against the PDF page given in the citation.
+- **Passages carry lead-in text.** Each passage sent to the model includes the lines just before it in the same rule, so it can tell, for example, the application fee (Rule 21(2)) from the high-rise permission fee (Rule 21(3)(c)).
 - The number check covers decimals and integers followed by a unit. A bare integer in an answer, such as "two", "3" or a clause number, is not verified.

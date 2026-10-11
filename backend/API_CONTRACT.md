@@ -81,7 +81,9 @@ The same response shape is used in every mode:
 
 1. **LLM mode** (`LLM_PROVIDER=cerebras`, or `anthropic|openai|gemini`): the answer is generated from the retrieved passages. Citations are built from the retrieval records the model cites, and each quote is checked verbatim.
 2. **Retrieval-only mode** (`LLM_PROVIDER=extractive`, the default with no API key): `answer` is a short notice ("AI summarisation is not enabled…") and `citations` holds the most relevant verified passages. The UI should present the citations as the content in this mode.
-3. **LLM failure** (missing key, provider down, rate limit, timeout, refusal, or unparseable output): the API still returns `200`, with an answer starting "The AI answer service is currently unavailable…" (in Hindi: "एआई उत्तर सेवा अभी उपलब्ध नहीं है।"), `confidence: "low"`, and retrieval-only citations. Nothing is generated, and the API does not return a 5xx for provider outages.
+3. **LLM failure** (missing key, provider down, rate limit, timeout, refusal, or unparseable output): the API still returns `200`, with `confidence: "low"` and retrieval-only citations. The answer starts with "The AI answer service is currently unavailable…" (in Hindi: "एआई उत्तर सेवा अभी उपलब्ध नहीं है।"), or for rate limits with "The AI service has reached its usage limit for the moment; please try again in about a minute." Nothing is generated, and the API does not return a 5xx for provider outages.
+
+Some citation excerpts from flattened tables are shown as verbatim fragments joined by " … ", e.g. "Rs. 10.00 per square meter of the … built up area.". Render them as-is.
 
 #### Notes appended to `answer`
 
@@ -126,6 +128,67 @@ The response has `"language": "hi"`, the `answer` in Hindi, and English excerpts
 | `500` | An unexpected server bug | `{"detail": "An internal error occurred while processing the request.", "message": "Internal server error."}` Internal details are never included. |
 
 ---
+
+## `POST /api/documents/analyze`
+
+Upload a document and ask about it. The file is read in memory, never stored, and never added to the rule database.
+
+**Request:** `multipart/form-data`. Do not set `Content-Type` yourself; the browser adds the boundary.
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| `file` | file | yes | PDF, PNG, JPEG, WebP or UTF-8 `.txt`, up to 10 MB. The type is detected from the file's content. |
+| `question` | string | no | Up to 2000 characters. If omitted, the server asks what the document says and which rules apply. |
+| `language` | string | no | `en` or `hi`. If omitted, it is detected from the question, or from the document text when there is no question. |
+
+**Response `200`:** the `/api/chat` contract above, plus two fields:
+
+```json
+{
+  "answer": "...", "language": "en", "citations": [ ... ], "confidence": "medium",
+  "insufficient_evidence": false, "document_coverage_date": "2025-03-06",
+  "document": {
+    "filename": "plan.pdf",
+    "media_type": "application/pdf",
+    "pages_total": 1,
+    "pages_read": 1,
+    "characters": 460,
+    "extraction_methods": ["text_layer"],
+    "ocr_engine": null,
+    "ocr_is_generative": false,
+    "truncated": false,
+    "warnings": []
+  },
+  "document_quotes": [
+    {"page": 1, "quote": "Proposed front open space 2.0 m"}
+  ]
+}
+```
+
+- `citations` contain **rule** citations only, checked as for chat.
+- `document_quotes` are passages from the user's own document. Each one has been checked verbatim against the text extracted from that page.
+- `document.extraction_methods` lists how pages were read: `text_layer` (digital PDF), `ocr`, `plain_text`.
+- When `ocr_is_generative` is true, the OCR was done by an AI model and may misread text. Show the user a warning; the answer also includes one.
+- `document.warnings` lists human-readable notes, e.g. "Only the first 30 of 45 pages were read." or "Page 2 has a damaged text layer; it was re-read with OCR."
+
+**Errors:** the body is `{"detail": "<readable message>"}`.
+
+| Status | When |
+|---|---|
+| `413` | The file is larger than the limit. |
+| `415` | Unsupported file type (e.g. `.exe`, `.docx`, `.zip`). |
+| `422` | No file was sent, or the file is empty, unreadable, password-protected, or contains no readable text (e.g. a photo when OCR is not configured). Also returned for an unsupported `language` or an over-long `question`. |
+
+Rate limits and AI outages behave as they do for chat: a `200` with the "unavailable" or "usage limit" message, plus verified rule passages.
+
+## `GET /api/documents/limits`
+
+```json
+{"max_bytes": 10485760, "max_pages": 30, "max_ocr_pages": 3,
+ "accepted_types": ["application/pdf", "image/png", "image/jpeg", "image/webp", "text/plain"],
+ "accepted_extensions": [".pdf", ".png", ".jpg", ".jpeg", ".webp", ".txt"],
+ "ocr_available": true, "ocr_engine": "cerebras-vision"}
+```
 
 ## `GET /health`
 

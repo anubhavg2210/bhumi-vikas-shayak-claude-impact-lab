@@ -59,8 +59,26 @@ class Settings(BaseSettings):
     CEREBRAS_REASONING_EFFORT: Optional[str] = None
     # 0-2. Empty = model default.
     CEREBRAS_TEMPERATURE: Optional[float] = None
-    # SDK retries for connection errors, 408, 429 and 5xx (exponential backoff).
+    # Per-attempt timeout. Cerebras usually answers in ~1 s.
+    CEREBRAS_TIMEOUT_SECONDS: float = 20.0
+    # Retries for rate limits (429), timeouts, network and 5xx errors...
     CEREBRAS_MAX_RETRIES: int = 2
+    # ...but only if the server's retry-after is at most this long; otherwise fail fast.
+    # Worst case per answer: (MAX_RETRIES + 1) * TIMEOUT + MAX_RETRIES * MAX_RETRY_WAIT = 70 s,
+    # below the frontend's 90 s request timeout.
+    CEREBRAS_MAX_RETRY_WAIT_SECONDS: float = 5.0
+
+    # Uploaded documents (POST /api/documents/analyze). Files are processed in memory, never stored.
+    UPLOAD_MAX_BYTES: int = 10 * 1024 * 1024
+    UPLOAD_MAX_PAGES: int = 30          # PDF pages read
+    # Scanned pages / images sent to OCR per upload. Each costs one LLM request; the Cerebras free
+    # tier allows 5 requests/minute, so 3 OCR pages + 1 answer fit in one minute.
+    UPLOAD_MAX_OCR_PAGES: int = 3
+    UPLOAD_MAX_TEXT_CHARS: int = 24000  # document text sent to the LLM
+    # OCR for photos and scanned PDFs: 'auto' (Cerebras vision when a Cerebras key is set), 'cerebras', 'none'
+    OCR_ENGINE: str = "auto"
+    # Image-capable Cerebras model (verified on this account 2026-10-11: qwen-3.8-27b accepts images)
+    CEREBRAS_VISION_MODEL: str = "qwen-3.8-27b"
 
     GEMINI_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-2.5-flash"
@@ -76,7 +94,7 @@ class Settings(BaseSettings):
     ANTHROPIC_ENABLE_FALLBACKS: bool = True
 
     # Retrieval configuration
-    MAX_RETRIEVAL_CHUNKS: int = 5
+    MAX_RETRIEVAL_CHUNKS: int = 8
     MIN_SIMILARITY_THRESHOLD: float = 0.15
     MAX_QUESTION_LENGTH: int = 2000
 

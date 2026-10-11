@@ -4,6 +4,10 @@ from backend.app.models.schemas import (
     ChatResponse,
     Citation,
     CoverageResponse,
+    DocumentAnalysisResponse,
+    DocumentInfo,
+    DocumentLimitsResponse,
+    DocumentQuote,
     HealthResponse,
     ConfidenceLevel,
 )
@@ -13,6 +17,10 @@ __all__ = [
     "ChatResponse",
     "Citation",
     "CoverageResponse",
+    "DocumentAnalysisResponse",
+    "DocumentInfo",
+    "DocumentLimitsResponse",
+    "DocumentQuote",
     "HealthResponse",
     "ConfidenceLevel",
 ]

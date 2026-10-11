@@ -1,7 +1,8 @@
 import React from 'react';
-import { User, ShieldCheck, Calendar, Info, AlertCircle, RotateCcw } from 'lucide-react';
+import { User, ShieldCheck, Calendar, Info, AlertCircle, RotateCcw, Paperclip } from 'lucide-react';
 import CitationCard from './CitationCard';
 import InsufficientEvidenceAlert from './InsufficientEvidenceAlert';
+import DocumentReadSummary from './DocumentReadSummary';
 import { translations } from '../i18n/translations';
 
 export default function ChatMessage({
@@ -11,7 +12,8 @@ export default function ChatMessage({
   onRetry
 }) {
   const t = translations[language];
-  const { role, content, citations = [], confidence, insufficient_evidence, document_coverage_date, isError } = message;
+  const { role, content, citations = [], confidence, insufficient_evidence, document_coverage_date, isError, isMockFallback,
+    attachment, document, document_quotes = [] } = message;
 
   if (role === 'user') {
     return (
@@ -24,7 +26,13 @@ export default function ChatMessage({
             </span>
           </div>
           <div className="user-bubble">
-            <p className="user-query-text">{content}</p>
+            {attachment && (
+              <p className="user-attachment">
+                <Paperclip size={13} />
+                <span>{t.attachmentLabel}: {attachment.name}</span>
+              </p>
+            )}
+            {content && <p className="user-query-text">{content}</p>}
           </div>
         </div>
       </div>
@@ -154,6 +162,18 @@ export default function ChatMessage({
           </div>
         ) : (
           <div className="assistant-body">
+            {/* Mock answers are demo content, not verified rule text: say so on every message */}
+            {document && (
+              <DocumentReadSummary document={document} quotes={document_quotes} language={language} />
+            )}
+
+            {isMockFallback && (
+              <div className="mock-data-warning" role="note">
+                <AlertCircle size={15} />
+                <span>{t.mockDataWarning}</span>
+              </div>
+            )}
+
             {/* If insufficient evidence, display special alert callout */}
             {insufficient_evidence ? (
               <div className="insufficient-wrap">

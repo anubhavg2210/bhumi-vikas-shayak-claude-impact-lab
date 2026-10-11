@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, Scale, BookMarked, Globe, CornerDownLeft } from 'lucide-react';
 import { translations } from '../i18n/translations';
+import AttachmentPicker from './AttachmentPicker';
 
 export default function DashboardHero({ language, onSubmitQuery, isLoading }) {
   const [query, setQuery] = useState('');
   const [validationError, setValidationError] = useState('');
+  const [file, setFile] = useState(null);
   const textareaRef = useRef(null);
   const t = translations[language];
 
@@ -18,12 +20,12 @@ export default function DashboardHero({ language, onSubmitQuery, isLoading }) {
 
   const handleSubmit = (e) => {
     if (e) e.preventDefault();
-    if (!query.trim()) {
+    if (!query.trim() && !file) {
       setValidationError(t.errorEmpty);
       return;
     }
     setValidationError('');
-    onSubmitQuery(query.trim());
+    onSubmitQuery(query.trim(), file);
   };
 
   const handleKeyDown = (e) => {
@@ -60,13 +62,15 @@ export default function DashboardHero({ language, onSubmitQuery, isLoading }) {
                     if (validationError) setValidationError('');
                   }}
                   onKeyDown={handleKeyDown}
-                  placeholder={t.inputPlaceholder}
+                  placeholder={file ? t.attachPlaceholder : t.inputPlaceholder}
                   rows={2}
                   disabled={isLoading}
                   className="hero-textarea"
                   aria-label="Ask about MP building regulations"
                 />
               </div>
+
+              {file && <p className="attach-privacy-note hero-privacy">{t.attachPrivacy}</p>}
 
               {validationError && (
                 <div className="validation-error-banner" role="alert">
@@ -76,6 +80,13 @@ export default function DashboardHero({ language, onSubmitQuery, isLoading }) {
 
               <div className="hero-search-footer">
                 <div className="keyboard-hints">
+                  <AttachmentPicker
+                    language={language}
+                    file={file}
+                    onFileChange={setFile}
+                    onError={setValidationError}
+                    disabled={isLoading}
+                  />
                   <span className="hint-pill">
                     <CornerDownLeft size={12} />
                     <span>{t.inputHelpHint}</span>
@@ -84,7 +95,7 @@ export default function DashboardHero({ language, onSubmitQuery, isLoading }) {
 
                 <button
                   type="submit"
-                  disabled={isLoading || !query.trim()}
+                  disabled={isLoading || (!query.trim() && !file)}
                   className="btn-primary submit-inquiry-btn"
                 >
                   {isLoading ? (

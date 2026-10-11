@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, BookOpen, FileText, Copy, Check, ExternalLink, ShieldCheck } from 'lucide-react';
 import { translations } from '../i18n/translations';
+import { formatRuleLabel } from '../services/citationFormat';
 
 export default function CitationViewerModal({ citation, language, onClose }) {
   const [copied, setCopied] = useState(false);
@@ -10,16 +11,17 @@ export default function CitationViewerModal({ citation, language, onClose }) {
 
   const {
     document_title = 'Madhya Pradesh Bhumi Vikas Niyam, 2012',
-    rule_number = 'Statutory Rule Reference',
+    rule_number,
     page_number,
     excerpt = '',
     source_url
   } = citation;
+  const ruleLabel = formatRuleLabel(rule_number, language);
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(
-        `${rule_number}\n${document_title} (Page ${page_number || 'N/A'})\n\n"${excerpt}"`
+        `${ruleLabel}\n${document_title} (Page ${page_number || 'N/A'})\n\n"${excerpt}"`
       );
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
@@ -38,7 +40,7 @@ export default function CitationViewerModal({ citation, language, onClose }) {
               <ShieldCheck size={13} />
               <span>{t.modalSourceBadge}</span>
             </span>
-            <h3 className="modal-title">{rule_number}</h3>
+            <h3 className="modal-title">{ruleLabel}</h3>
             <p className="modal-subtitle">{document_title}</p>
           </div>
 
@@ -63,7 +65,7 @@ export default function CitationViewerModal({ citation, language, onClose }) {
             )}
             <div className="meta-pill">
               <BookOpen size={14} />
-              <span>{t.modalRuleReference}: <strong>{rule_number}</strong></span>
+              <span>{t.modalRuleReference}: <strong>{ruleLabel}</strong></span>
             </div>
           </div>
 

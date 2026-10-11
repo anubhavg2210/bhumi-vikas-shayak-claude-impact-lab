@@ -2,15 +2,19 @@
 import logging
 from contextlib import asynccontextmanager
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from backend.app import __version__
 from backend.app.config import settings
-from backend.app.models.schemas import ChatRequest, ChatResponse, CoverageResponse, HealthResponse
+from backend.app.models.schemas import (
+    ChatRequest, ChatResponse, CoverageResponse, DocumentAnalysisResponse, DocumentLimitsResponse, HealthResponse,
+    normalize_language_code,
+)
 from backend.app.services import coverage
 from backend.app.services.citation_validator import CitationValidator
+from backend.app.services.document_reader import ACCEPTED_TYPES, DocumentReader, DocumentReadError, get_ocr_engine
 from backend.app.services.document_store import DocumentStore
 from backend.app.services.llm_provider import get_llm_provider, provider_label
 from backend.app.services.rag_service import RAGService
@@ -138,6 +142,52 @@ async def coverage_info():
         known_post_coverage_amendments=[a.to_dict() for a in coverage.KNOWN_POST_COVERAGE_AMENDMENTS],
         limitations=coverage.FRESHNESS_LIMITATIONS,
     )
+
+
+@app.get("/api/documents/limits", response_model=DocumentLimitsResponse, tags=["Documents"])
+async def document_limits():
+    """Upload limits and whether OCR (scanned PDFs, photos) is available."""
+    ocr = get_ocr_engine()
+    return DocumentLimitsResponse(
+        max_bytes=settings.UPLOAD_MAX_BYTES,
+        max_pages=settings.UPLOAD_MAX_PAGES,
+        max_ocr_pages=settings.UPLOAD_MAX_OCR_PAGES,
+        accepted_types=list(ACCEPTED_TYPES),
+        accepted_extensions=[".pdf", ".png", ".jpg", ".jpeg", ".webp", ".txt"],
+        ocr_available=ocr is not None,
+        ocr_engine=ocr.name if ocr else None,
+    )
+
+
+@app.post("/api/documents/analyze", response_model=DocumentAnalysisResponse, tags=["Documents"])
+async def analyze_document(
+    file: UploadFile = File(..., description="PDF, PNG, JPEG, WebP or plain-text file"),
+    question: Optional[str] = Form(default=None, description="Optional question about the document"),
+    language: Optional[str] = Form(default=None, description="'en' or 'hi'; detected if omitted"),
+):
+    """Read an uploaded document and answer a question about it against the rules.
+
+    The file is processed in memory and not stored or added to the rule database.
+    """
+    if app_context.rag_service is None:
+        raise HTTPException(status_code=503, detail="Service is still initializing.")
+    try:
+        lang = normalize_language_code(language)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    if question and len(question.strip()) > settings.MAX_QUESTION_LENGTH:
+        raise HTTPException(status_code=422, detail=f"Question must be at most {settings.MAX_QUESTION_LENGTH} characters.")
+
+    # Read at most one byte past the limit so oversized uploads are rejected without buffering them.
+    data = await file.read(settings.UPLOAD_MAX_BYTES + 1)
+    await file.close()
+    try:
+        doc = await DocumentReader().read(file.filename or "document", data)
+    except DocumentReadError as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e))
+    logger.info(f"Document read: {doc.media_type}, {len(doc.pages)}/{doc.pages_total} pages, "
+                f"{doc.characters} chars, methods={doc.methods}")
+    return await app_context.rag_service.analyze_document(doc, question, lang)
 
 
 @app.post("/api/chat", response_model=ChatResponse, tags=["Chat"])

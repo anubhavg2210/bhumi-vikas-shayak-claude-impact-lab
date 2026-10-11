@@ -16,6 +16,7 @@ export const translations = {
     apiStatusMock: "Standalone / Mock Mode",
     apiSwitchToLive: "Switch to Live API",
     apiSwitchToMock: "Use Offline Mock",
+    mockDataWarning: "Demo data (mock mode): this sample answer was not produced from the rules and its citations are not verified. Switch to Live API for real answers.",
     
     // Regulatory Banner
     bannerCoverageTitle: "Statutory Coverage & Legal Scope",
@@ -106,7 +107,27 @@ export const translations = {
     modalFullPassage: "Supporting Legal Excerpt",
     modalCopyExcerpt: "Copy Passage",
     modalCopied: "Copied!",
-    modalDismiss: "Close Viewer"
+    modalDismiss: "Close Viewer",
+
+    // Document upload
+    attachDocument: "Attach document",
+    removeAttachment: "Remove attached document",
+    attachHint: "Attach a PDF, photo or text file (up to {mb} MB) to ask about it",
+    attachPrivacy: "The document is read in memory and not stored; its text is sent to the AI service for analysis. Avoid uploading documents with personal details you do not want shared.",
+    attachPlaceholder: "Ask a question about the attached document (optional)...",
+    uploadBadType: "Unsupported file type. Attach a PDF, PNG, JPEG, WebP or .txt file.",
+    uploadTooLarge: "The file is larger than {mb} MB.",
+    uploadEmpty: "The selected file is empty.",
+    uploadMissing: "No document selected.",
+    documentNeedsLive: "Document analysis needs the Live API. Switch off Mock Mode to analyze documents.",
+    documentReadTitle: "Document read:",
+    documentPages: "{read} of {total} page(s) read",
+    documentMethodText: "Digital text",
+    documentMethodOcr: "OCR",
+    documentMethodPlain: "Plain text",
+    documentOcrWarning: "Read by AI-based OCR, which can misread text. Check figures against your original document.",
+    documentQuotesHeading: "From your document (verified against the extracted text)",
+    attachmentLabel: "Attached"
   },
   
   hi: {
@@ -126,6 +147,26 @@ export const translations = {
     apiStatusMock: "स्टैंडअलोन / मॉक मोड",
     apiSwitchToLive: "लाइव एपीआई पर स्विच करें",
     apiSwitchToMock: "ऑफलाइन मॉक का उपयोग करें",
+    // Document upload
+    attachDocument: "दस्तावेज़ जोड़ें",
+    removeAttachment: "जोड़ा गया दस्तावेज़ हटाएं",
+    attachHint: "PDF, फोटो या टेक्स्ट फ़ाइल ({mb} MB तक) जोड़कर उसके बारे में पूछें",
+    attachPrivacy: "दस्तावेज़ केवल मेमोरी में पढ़ा जाता है और संग्रहीत नहीं होता; विश्लेषण के लिए इसका पाठ एआई सेवा को भेजा जाता है। ऐसी व्यक्तिगत जानकारी वाले दस्तावेज़ न जोड़ें जिसे आप साझा नहीं करना चाहते।",
+    attachPlaceholder: "जोड़े गए दस्तावेज़ के बारे में प्रश्न पूछें (वैकल्पिक)...",
+    uploadBadType: "यह फ़ाइल प्रकार समर्थित नहीं है। PDF, PNG, JPEG, WebP या .txt फ़ाइल जोड़ें।",
+    uploadTooLarge: "फ़ाइल {mb} MB से बड़ी है।",
+    uploadEmpty: "चुनी गई फ़ाइल खाली है।",
+    uploadMissing: "कोई दस्तावेज़ नहीं चुना गया।",
+    documentNeedsLive: "दस्तावेज़ विश्लेषण के लिए लाइव एपीआई आवश्यक है। मॉक मोड बंद करें।",
+    documentReadTitle: "पढ़ा गया दस्तावेज़:",
+    documentPages: "{total} में से {read} पृष्ठ पढ़े गए",
+    documentMethodText: "डिजिटल पाठ",
+    documentMethodOcr: "OCR",
+    documentMethodPlain: "सादा पाठ",
+    documentOcrWarning: "एआई-आधारित OCR से पढ़ा गया; पाठ गलत पढ़ा जा सकता है। आंकड़ों का मिलान अपने मूल दस्तावेज़ से करें।",
+    documentQuotesHeading: "आपके दस्तावेज़ से (निकाले गए पाठ से सत्यापित)",
+    attachmentLabel: "संलग्न",
+    mockDataWarning: "डेमो डेटा (मॉक मोड): यह नमूना उत्तर नियमों से तैयार नहीं किया गया है और इसके संदर्भ सत्यापित नहीं हैं। वास्तविक उत्तर के लिए लाइव एपीआई पर स्विच करें।",
     
     // Regulatory Banner
     bannerCoverageTitle: "वैधानिक दायरा एवं कानूनी विस्तार",

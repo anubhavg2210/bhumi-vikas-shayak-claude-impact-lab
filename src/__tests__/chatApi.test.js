@@ -59,19 +59,13 @@ describe('chatApi Service & Schema Verification', () => {
     expect(res.answer).toContain('does not contain sufficient verified statutory evidence');
   });
 
-  it('gracefully falls back to verified mock data on network fetch error', async () => {
-    // Mock global fetch to simulate offline / backend not running yet
-    globalThis.fetch = vi.fn().mockRejectedValue(new Error('Failed to fetch'));
+  it('surfaces network errors instead of silently answering with mock data', async () => {
+    // Backend not running / CORS failure: the UI must show an error, never demo content
+    globalThis.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const res = await sendChatQuery({
-      question: 'What are setback rules?',
-      language: 'en',
-      useMock: false
-    });
-
-    expect(res).toBeDefined();
-    expect(res.answer).toBeDefined();
-    expect(res.isMockFallback).toBe(true);
+    await expect(
+      sendChatQuery({ question: 'What are setback rules?', language: 'en', useMock: false })
+    ).rejects.toMatchObject({ isNetwork: true });
   });
 
   it('handles backend response conforming to contract', async () => {

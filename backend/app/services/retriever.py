@@ -133,6 +133,8 @@ class RetrievalResult:
     score: float
     confidence: str  # "high", "medium", "low"
     is_direct_rule_match: bool = False
+    # Verbatim text just before this chunk in the same rule (headings, table captions)
+    context: str = ""
 
 
 class BM25Index:
@@ -187,11 +189,14 @@ class RuleRetriever:
         self.chunk_texts: List[str] = []
 
         # Prepare corpus for BM25 and TF-IDF
+        # The tail of the previous chunk of the same rule, so that table rows and clauses stay
+        # associated with the heading that introduces them (e.g. "(2) Application Fee: ...").
+        # Used for indexing and shown to the LLM as context before the passage.
+        self.lead_ins: List[str] = []
         prev = None
         for ch in self.chunks:
-            # Retrieval-only context: the tail of the previous chunk of the same rule, so that
-            # table rows and provisos stay associated with the heading that introduces them.
-            lead_in = prev.text[-200:] if prev is not None and prev.rule_number == ch.rule_number else ""
+            lead_in = self._lead_in(prev.text) if prev is not None and prev.rule_number == ch.rule_number else ""
+            self.lead_ins.append(lead_in)
             enriched = f"Rule {ch.rule_number}. {ch.rule_title}. {ch.part}.\n{lead_in}\n{ch.text}"
             prev = ch
             self.chunk_texts.append(enriched)
@@ -219,6 +224,14 @@ class RuleRetriever:
     def preprocess_text(self, text: str) -> List[str]:
         """Tokenize text and extract words/numbers."""
         return re.findall(r"[a-zA-Z0-9_\u0900-\u097F]+", text.lower())
+
+    @staticmethod
+    def _lead_in(previous_text: str, limit: int = 300) -> str:
+        """Last lines of the previous chunk, starting at a line boundary (verbatim)."""
+        tail = previous_text[-limit:]
+        if len(previous_text) > limit and "\n" in tail:
+            tail = tail[tail.index("\n") + 1:]
+        return tail.strip()
 
     @staticmethod
     def stem_tokens(tokens: List[str]) -> List[str]:
@@ -339,6 +352,7 @@ class RuleRetriever:
                     score=score,
                     confidence=confidence,
                     is_direct_rule_match=is_rule_match,
+                    context=self.lead_ins[idx],
                 )
             )
 

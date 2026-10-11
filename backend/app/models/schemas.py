@@ -4,6 +4,18 @@ from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
+def normalize_language_code(v: Optional[str]) -> Optional[str]:
+    """'en' / 'hi' (accepting common aliases), None when blank; ValueError otherwise."""
+    if v is None or not str(v).strip():
+        return None
+    val = str(v).lower().strip()
+    if val in ("hi", "hindi", "hi-in"):
+        return "hi"
+    if val in ("en", "english", "en-in", "en-us", "en-gb"):
+        return "en"
+    raise ValueError("Unsupported language. Use 'en' or 'hi'.")
+
+
 class ConfidenceLevel(str, Enum):
     """Confidence levels for evidence-grounded answers."""
     HIGH = "high"
@@ -39,14 +51,7 @@ class ChatRequest(BaseModel):
     @field_validator("language")
     @classmethod
     def normalize_language(cls, v: Optional[str]) -> Optional[str]:
-        if v is None or not v.strip():
-            return None
-        val = v.lower().strip()
-        if val in ("hi", "hindi", "hi-in"):
-            return "hi"
-        if val in ("en", "english", "en-in", "en-us", "en-gb"):
-            return "en"
-        raise ValueError("Unsupported language. Use 'en' or 'hi'.")
+        return normalize_language_code(v)
 
 
 class Citation(BaseModel):
@@ -124,3 +129,42 @@ class CoverageResponse(BaseModel):
     documents_loaded: int
     known_post_coverage_amendments: List[AmendmentInfo]
     limitations: List[str]
+
+
+class DocumentInfo(BaseModel):
+    """What was read from an uploaded document."""
+    filename: str
+    media_type: str = Field(..., description="Detected from the file content, e.g. 'application/pdf', 'image/jpeg'")
+    pages_total: int
+    pages_read: int
+    characters: int
+    extraction_methods: List[str] = Field(..., description="'text_layer' (digital PDF), 'ocr', 'plain_text'")
+    ocr_engine: Optional[str] = Field(default=None, description="OCR engine used, if any (e.g. 'cerebras-vision')")
+    ocr_is_generative: bool = Field(default=False, description="True when OCR was done by an AI model; figures may be misread")
+    truncated: bool
+    warnings: List[str] = Field(default_factory=list)
+
+
+class DocumentQuote(BaseModel):
+    """A passage from the user's own document, verified verbatim against the extracted text."""
+    page: int
+    quote: str
+
+
+class DocumentAnalysisResponse(ChatResponse):
+    """Response for POST /api/documents/analyze: the chat contract plus document details.
+
+    `citations` are rule citations only; `document_quotes` are passages from the upload.
+    """
+    document: DocumentInfo
+    document_quotes: List[DocumentQuote] = Field(default_factory=list)
+
+
+class DocumentLimitsResponse(BaseModel):
+    max_bytes: int
+    max_pages: int
+    max_ocr_pages: int
+    accepted_types: List[str]
+    accepted_extensions: List[str]
+    ocr_available: bool
+    ocr_engine: Optional[str] = None

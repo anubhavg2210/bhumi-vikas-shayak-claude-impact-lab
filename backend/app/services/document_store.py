@@ -24,11 +24,23 @@ _DASHES = dict.fromkeys(map(ord, "‐‑‒–—―−"), "-")
 _QUOTES = {ord("‘"): "'", ord("’"): "'", ord("“"): '"', ord("”"): '"', ord(" "): " "}
 
 
+# Amendment footnote marker on its own line before a bracketed insertion: "   1\n     [(b) exceeds ..."
+_FOOTNOTE_MARKER_RE = re.compile(r"(^|\n)[ \t]*\d{1,2}[ \t]*(?=\n[ \t]*\[)")
+_SPELLING_RE = re.compile(r"iz(e|ed|es|ing|ation|ations)\b")
+
+
 def normalize_text(text: str) -> str:
-    """Normalize dashes, quotes, whitespace and case for robust verbatim comparison."""
-    cleaned = text.translate(_DASHES).translate(_QUOTES)
-    cleaned = re.sub(r"\s+", " ", cleaned)
-    return cleaned.strip().lower()
+    """Normalize formatting (not wording or figures) for verbatim comparison.
+
+    Ignored: case, whitespace, dash/quote style, line-break hyphenation ("built-\\n up"),
+    amendment markers ("1", "[", "]") and -ise/-ize spelling. Words and numbers must match.
+    """
+    cleaned = _FOOTNOTE_MARKER_RE.sub(r"\1", text)
+    cleaned = cleaned.translate(_DASHES).translate(_QUOTES)
+    cleaned = re.sub(r'[\[\]"]', "", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip().lower()
+    cleaned = re.sub(r"-\s+", "-", cleaned)
+    return _SPELLING_RE.sub(r"is\1", cleaned)
 
 
 def strip_page_headers(text: str) -> str:

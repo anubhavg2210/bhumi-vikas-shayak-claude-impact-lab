@@ -6,7 +6,7 @@ import ExamplePrompts from './components/ExamplePrompts';
 import ChatContainer from './components/ChatContainer';
 import ChatInput from './components/ChatInput';
 import CitationViewerModal from './components/CitationViewerModal';
-import { sendChatQuery } from './services/chatApi';
+import { sendChatQuery, analyzeDocument } from './services/chatApi';
 import { translations } from './i18n/translations';
 import './App.css';
 
@@ -29,6 +29,8 @@ export default function App() {
   // 3. Loading & error states
   const [isLoading, setIsLoading] = useState(false);
   const [lastQuery, setLastQuery] = useState('');
+  // File objects are kept in memory only (not persisted) so a failed upload can be retried.
+  const [lastFile, setLastFile] = useState(null);
 
   // 4. Mock mode toggle: whether to force offline mock data or call real backend
   const [isMockMode, setIsMockMode] = useState(() => {
@@ -66,25 +68,29 @@ export default function App() {
 
   // Handle submitting a question (either from hero input, example cards, or chat input)
   const handleSendMessage = useCallback(
-    async (questionText) => {
-      if (!questionText || !questionText.trim() || isLoading) return;
+    async (questionText, file = null) => {
+      const text = (questionText || '').trim();
+      if ((!text && !file) || isLoading) return;
 
       const userMessage = {
         role: 'user',
-        content: questionText.trim(),
+        content: text,
+        attachment: file ? { name: file.name, size: file.size } : null,
         timestamp: new Date().toISOString()
       };
 
       setMessages((prev) => [...prev, userMessage]);
-      setLastQuery(questionText.trim());
+      setLastQuery(text);
+      setLastFile(file);
       setIsLoading(true);
 
       try {
-        const response = await sendChatQuery({
-          question: questionText.trim(),
-          language,
-          useMock: isMockMode
-        });
+        if (file && isMockMode) {
+          throw new Error(translations[language].documentNeedsLive);
+        }
+        const response = file
+          ? await analyzeDocument({ file, question: text, language })
+          : await sendChatQuery({ question: text, language, useMock: isMockMode });
 
         const assistantMessage = {
           role: 'assistant',
@@ -94,6 +100,8 @@ export default function App() {
           insufficient_evidence: Boolean(response.insufficient_evidence),
           document_coverage_date: response.document_coverage_date || '2025-03-06',
           isMockFallback: Boolean(response.isMockFallback),
+          document: response.document || null,
+          document_quotes: response.document_quotes || [],
           timestamp: new Date().toISOString()
         };
 
@@ -103,9 +111,11 @@ export default function App() {
         const t = translations[language];
         let errorMessageText = t.errorGenericTitle;
 
-        if (error.isTimeout) {
+        if (error.uploadErrorKey) {
+          errorMessageText = t[error.uploadErrorKey];
+        } else if (error.isTimeout) {
           errorMessageText = t.errorTimeout;
-        } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        } else if (error.isNetwork || error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
           errorMessageText = t.errorNetwork;
         } else {
           errorMessageText = `${t.errorGenericTitle}: ${error.message}`;
@@ -129,21 +139,22 @@ export default function App() {
   // Retry query handler
   const handleRetry = useCallback(
     (messageIndex) => {
-      if (lastQuery) {
+      if (lastQuery || lastFile) {
         // Remove error message if requested
         if (messageIndex !== undefined) {
           setMessages((prev) => prev.filter((_, idx) => idx !== messageIndex));
         }
-        handleSendMessage(lastQuery);
+        handleSendMessage(lastQuery, lastFile);
       }
     },
-    [lastQuery, handleSendMessage]
+    [lastQuery, lastFile, handleSendMessage]
   );
 
   // Clear session to return to fresh Dashboard
   const handleClearSession = useCallback(() => {
     setMessages([]);
     setLastQuery('');
+    setLastFile(null);
     sessionStorage.removeItem('bvs_messages');
   }, []);
 

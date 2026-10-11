@@ -1345,3 +1345,71 @@
     margin-left: auto;
   }
 }
+
+/* Demo-data warning shown on every mock-mode answer */
+.mock-data-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.mock-data-warning svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+
+/* ---------- Document upload ---------- */
+.visually-hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.attachment-picker { display: inline-flex; align-items: center; }
+.attach-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; padding: 4px 10px; }
+.attachment-chip {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 320px;
+  padding: 4px 8px; border: 1px solid #94a3b8; border-radius: 999px;
+  background: #f1f5f9; font-size: 0.8rem; color: #0f172a;
+}
+.attachment-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.attachment-size { color: #64748b; }
+.attachment-remove {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: transparent; cursor: pointer; padding: 2px; color: #475569;
+}
+.chat-input-attach-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.attach-privacy-note { font-size: 0.75rem; color: #64748b; line-height: 1.35; margin: 0; }
+.hero-privacy { margin: 6px 0 0; }
+.user-attachment { display: flex; align-items: center; gap: 6px; margin: 0 0 4px; font-size: 0.8rem; color: #e2e8f0; font-weight: 600; }
+
+.document-read-card {
+  margin-bottom: 14px; padding: 12px 14px;
+  border: 1px solid #cbd5e1; border-radius: 10px; background: #f8fafc;
+}
+.document-read-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 0.9rem; }
+.document-read-title { color: #475569; }
+.document-read-name { word-break: break-all; }
+.document-read-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.document-read-note {
+  display: flex; gap: 6px; align-items: flex-start; margin: 10px 0 0;
+  color: #92400e; font-size: 0.8rem; font-weight: 600;
+}
+.document-read-note svg { flex-shrink: 0; margin-top: 2px; }
+.document-read-warnings { margin: 8px 0 0; padding-left: 18px; color: #92400e; font-size: 0.8rem; }
+.document-quotes { margin-top: 10px; }
+.document-quotes-heading { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; font-weight: 600; color: #334155; }
+.document-quotes ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.document-quotes li { display: flex; gap: 8px; font-size: 0.85rem; }
+.doc-quote-page { flex-shrink: 0; color: #64748b; font-size: 0.75rem; padding-top: 2px; }
+.doc-quote-text { font-style: italic; color: #0f172a; }

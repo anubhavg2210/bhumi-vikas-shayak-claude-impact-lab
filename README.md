@@ -34,10 +34,16 @@ This frontend application delivers an accessible civic-technology interface with
   - Explains why evidence was not found (e.g., local Master Plan variance, out-of-scope domain such as agricultural subsidies or crypto).
   - Recommends official next steps and links to the MP Town and Country Planning Directorate.
 
-- **Parallel Development & Mock Fallback**:
-  - Reads `VITE_API_BASE_URL` to connect to `POST /api/chat`.
-  - When the backend is offline or during isolated frontend development, it automatically falls back to verified MP building rules mock data.
-  - Includes a UI toggle in the header to switch between Live API and Offline Mock Mode at any time.
+- **Backend connection & Mock Mode**:
+  - In development, calls go to same-origin `POST /api/chat` and `GET /health`, which the Vite dev server proxies to the FastAPI backend (`BACKEND_URL`, default `http://127.0.0.1:8000`).
+  - If the backend is unreachable, the chat shows a connection error with **Retry**. It never substitutes mock data on its own.
+  - A header toggle switches to **Mock Mode** for offline UI work. Mock answers are sample content, not verified rule text, and each one carries a "Demo data" warning.
+
+- **Document upload**:
+  - The paperclip button in either input box (**Attach document**) accepts a PDF, PNG, JPEG, WebP photo or `.txt` file of up to 10 MB. You can send it with or without a question.
+  - The file is posted to `POST /api/documents/analyze`. The backend reads it in memory (using OCR for scans and photos), does not store it, and answers against the rules with verified citations.
+  - The answer shows a **Document read** card: file name, pages read, how the pages were read, any warnings, and quotes from your document that were verified against the extracted text. If AI-based OCR was used, the card warns that figures may be misread.
+  - A privacy note appears while a file is attached: the document's text is sent to the AI service. Document analysis needs the Live API and is not available in Mock Mode.
 
 ---
 
@@ -62,26 +68,26 @@ This frontend application delivers an accessible civic-technology interface with
 npm install
 ```
 
-### 3. Environment Configuration
-Copy `.env.example` to `.env`:
-```bash
-cp .env.example .env
-```
-Default `.env` settings:
+### 3. Environment Configuration (optional)
+The defaults work as-is. To change them, copy `.env.example` to `.env.local`, which is git-ignored:
 ```env
-# Backend RAG API Base URL
-VITE_API_BASE_URL=http://localhost:8000
-
-# Force mock mode during offline development (true/false)
+VITE_API_BASE_URL=            # empty in dev = use the Vite proxy
+BACKEND_URL=http://127.0.0.1:8000
 VITE_USE_MOCK=false
+VITE_API_TIMEOUT_MS=90000
 ```
+Only `VITE_*` variables reach the browser. **Never put API keys in frontend env files.** The Cerebras key and other backend settings live in `backend/.env` (see `backend/README.md`).
 
 ### 4. Running Locally
-Start the Vite development server:
+Start the backend and the frontend in two terminals, both from the repository root:
 ```bash
+# terminal 1: backend API on :8000
+python -m uvicorn backend.app.main:app --reload --port 8000
+
+# terminal 2: frontend on :5173 (proxies /api and /health to :8000)
 npm run dev
 ```
-Open `http://localhost:5173/` in your browser.
+Open `http://localhost:5173/` in your browser. The header shows **Backend API Connected** when Live API mode is on.
 
 ### 5. Running Tests
 Run all unit and integration tests:
@@ -100,35 +106,36 @@ npm run build
 ## 🔌 API Integration Contract
 
 The frontend connects to the backend at:
-`POST /api/chat` (or `${VITE_API_BASE_URL}/api/chat`)
+`POST /api/chat` (or `${VITE_API_BASE_URL}/api/chat`). The authoritative contract is [`backend/API_CONTRACT.md`](backend/API_CONTRACT.md).
 
 ### Request:
 ```json
 {
-  "question": "What are the building setback requirements for a 250 sq.m plot?",
+  "question": "What is the minimum rear open space for a 150 sq m residential plot?",
   "language": "en"
 }
 ```
 
-### Expected Response:
+### Response (real backend output; excerpt shortened):
 ```json
 {
-  "answer": "Under Rule 52 of MP Bhumi Vikas Niyam, 2012...",
+  "answer": "...",
   "language": "en",
   "citations": [
     {
-      "document_title": "Madhya Pradesh Bhumi Vikas Niyam, 2012",
-      "rule_number": "Rule 52, Table No. 13",
-      "page_number": 48,
-      "excerpt": "For residential plots having an area exceeding 150 sq. metres...",
-      "source_url": "https://tcpm.mp.gov.in/rules/MP_Bhumi_Vikas_Niyam_2012.pdf#page=48"
+      "document_title": "Madhya Pradesh Bhumi Vikas Rules, 2012 (Consolidated up to 06-03-2025)",
+      "rule_number": "56",
+      "page_number": 78,
+      "excerpt": "(2) Rear Open Space,- (a) Every Residential Building, having height up to 12.5 meters, shall have a Rear Open Space, as below:- ... Above 40.00 and up to 150.00 1.50 ..."
     }
   ],
-  "confidence": "high",
+  "confidence": "medium",
   "insufficient_evidence": false,
   "document_coverage_date": "2025-03-06"
 }
 ```
+
+`rule_number` is the bare printed number (shown as "Rule 56" / "नियम 56") and may be `null`, as may `page_number`. The backend does not send `source_url`.
 
 ---
 
