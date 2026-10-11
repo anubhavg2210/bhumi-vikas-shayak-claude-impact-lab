@@ -3,6 +3,7 @@
 Providers only turn (system_prompt, user_prompt) into raw text. Grounding, JSON parsing and
 citation validation happen in RAGService, so no provider output is trusted as-is.
 """
+import asyncio
 import logging
 import time
 from abc import ABC, abstractmethod
@@ -275,7 +276,9 @@ class CerebrasLLMProvider(LLMProvider):
             raise LLMProviderError("The 'openai' package is not installed (pip install openai).",
                                    reason="not_configured") from None
         kwargs = dict(api_key=self.api_key, base_url=self.base_url,
-                      timeout=settings.LLM_TIMEOUT_SECONDS, max_retries=settings.CEREBRAS_MAX_RETRIES)
+                      timeout=settings.CEREBRAS_TIMEOUT_SECONDS,
+                      # Retries are handled in _create_with_retry so long retry-after waits can be capped.
+                      max_retries=0)
         if self._http_client is not None:
             kwargs["http_client"] = self._http_client
         self._client = openai.AsyncOpenAI(**kwargs)
@@ -337,8 +340,7 @@ class CerebrasLLMProvider(LLMProvider):
                                     "support a configured parameter (response_format, reasoning_effort, temperature) "
                                     "or the model ID is invalid.", "bad_request")
         if isinstance(exc, openai.APITimeoutError):
-            return LLMProviderError(f"Cerebras request timed out after {settings.LLM_TIMEOUT_SECONDS:g}s "
-                                    f"(including {settings.CEREBRAS_MAX_RETRIES} retries).", "timeout")
+            return LLMProviderError(f"Cerebras request timed out after {settings.CEREBRAS_TIMEOUT_SECONDS:g}s.", "timeout")
         if isinstance(exc, openai.APIConnectionError):
             return LLMProviderError("Could not connect to Cerebras (network error).", "network")
         if isinstance(exc, openai.APIStatusError):
@@ -348,16 +350,56 @@ class CerebrasLLMProvider(LLMProvider):
             return LLMProviderError(f"Cerebras returned HTTP {status}{suffix}.", reason)
         return LLMProviderError(f"Cerebras request failed: {type(exc).__name__}", "provider_error")
 
+    @staticmethod
+    def _retry_after_seconds(exc: Any) -> Optional[float]:
+        headers = getattr(getattr(exc, "response", None), "headers", None) or {}
+        try:
+            if headers.get("retry-after-ms") is not None:
+                return float(headers["retry-after-ms"]) / 1000.0
+            if headers.get("retry-after") is not None:
+                return float(headers["retry-after"])
+        except (TypeError, ValueError):
+            return None  # e.g. an HTTP-date; fall back to exponential backoff
+        return None
+
+    async def _create_with_retry(self, request: dict) -> Any:
+        """Call chat.completions with bounded retries.
+
+        Retries rate limits, timeouts, network and 5xx errors up to CEREBRAS_MAX_RETRIES times,
+        but only when the wait is <= CEREBRAS_MAX_RETRY_WAIT_SECONDS. A long `retry-after`
+        (Cerebras sends ~60 s when a per-minute quota is used up) fails fast instead, so the
+        user gets the clear "temporarily unavailable" response rather than a stalled request.
+        """
+        client = self._get_client()
+        attempts = settings.CEREBRAS_MAX_RETRIES + 1
+        for attempt in range(attempts):
+            try:
+                return await client.chat.completions.create(**request)
+            except Exception as e:
+                # `from None`: the SDK exception text is not chained into logs or responses.
+                err = self._translate_error(e)
+                status = getattr(e, "status_code", None)
+                retryable = err.reason in {"rate_limited", "timeout", "network", "server_error"} or status in (408, 409)
+                if not retryable or attempt == attempts - 1:
+                    raise err from None
+                wait = self._retry_after_seconds(e)
+                if wait is None:
+                    wait = min(0.5 * (2 ** attempt), 4.0)
+                if wait > settings.CEREBRAS_MAX_RETRY_WAIT_SECONDS:
+                    raise LLMProviderError(
+                        f"{err} Cerebras asked to retry after {wait:g}s, more than "
+                        f"CEREBRAS_MAX_RETRY_WAIT_SECONDS={settings.CEREBRAS_MAX_RETRY_WAIT_SECONDS:g}; not waiting.",
+                        err.reason,
+                    ) from None
+                logger.warning(f"Cerebras {err.reason}; retrying in {wait:.1f}s (attempt {attempt + 2} of {attempts}).")
+                await asyncio.sleep(wait)
+        raise LLMProviderError("Cerebras request failed.", "provider_error")  # not reached
+
     async def generate_response(self, system_prompt: str, user_prompt: str,
                                 json_schema: Optional[dict] = None) -> str:
-        client = self._get_client()
         request = self._build_request(system_prompt, user_prompt, json_schema)
         started = time.monotonic()
-        try:
-            completion = await client.chat.completions.create(**request)
-        except Exception as e:
-            # `from None`: the SDK exception text is not chained into logs or responses.
-            raise self._translate_error(e) from None
+        completion = await self._create_with_retry(request)
 
         try:
             choice = completion.choices[0]

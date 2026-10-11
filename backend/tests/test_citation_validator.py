@@ -104,6 +104,54 @@ def test_duplicate_citations_deduplicated(citation_validator):
     assert len(citation_validator.validate_citations(raw)) == 1
 
 
+# Flattened two-column fee table in Rule 21(3) (PDF page 37), as it appears in the source text:
+FEE_TABLE = ("1. A building intended to be used Rs. 10.00 per square meter of the\n"
+             "      exclusively for residence.                built up area.\n"
+             "   2. A building intended to be used as      Fees as prescribed in item No. 1\n"
+             "      shops, storehouse, factory or for      with additional charges")
+
+
+def test_fragments_accept_reassembled_table_cell():
+    from backend.app.services.citation_validator import match_fragments
+    assert match_fragments("Rs. 10.00 per square meter of the built up area.", FEE_TABLE) == \
+        ["Rs. 10.00 per square meter of the", "built up area."]
+    assert match_fragments("A building intended to be used exclusively for residence.", FEE_TABLE) == \
+        ["A building intended to be used", "exclusively for residence."]
+
+
+@pytest.mark.parametrize("quote", [
+    "Rs. 15.00 per square meter of the built up area.",          # changed figure
+    "built up area. Rs. 10.00 per square meter of the",          # fragments out of source order
+    "A building intended to be used with additional charges",    # fragments too far apart (other row)
+    "Rs. 10.00 per square meter of the exclusively",             # 1-word fragment
+    "Rs. 10.00 per square meter for any house whatsoever.",      # unmatched words
+])
+def test_fragments_reject_unfaithful_quotes(quote):
+    from backend.app.services.citation_validator import match_fragments
+    assert match_fragments(quote, FEE_TABLE) is None
+
+
+def test_fragments_cannot_borrow_a_figure_from_another_row(doc_store):
+    # Wrong-row risk: the 12 m row's words with the 18 m row's figure.
+    from backend.app.services.citation_validator import match_fragments
+    rule56 = doc_store.get_rule("56").text
+    assert match_fragments("More than 9.0 meters and up to 12 meters 4.5 meters", rule56) is None
+    assert match_fragments("Up to 9.0 meters 3.6 meters", rule56) is None
+    assert match_fragments("Above 40.00 and up to 150.00 2.50", rule56) is None
+
+
+def test_stitched_citation_shows_only_verbatim_fragments(citation_validator, retriever):
+    q = "What is the fee for building permission for a residential house?"
+    passages = retriever.retrieve(q, top_k=8)
+    report = citation_validator.validate_against_passages(
+        [{"passage_id": next(i for i, p in enumerate(passages, 1) if "10.00 per square meter" in " ".join(p.text.split())),
+          "quote": "Rs. 10.00 per square meter of the built up area."}], passages)
+    assert report.stitched == 1 and report.rejected == 0
+    cit = report.citations[0]
+    assert cit.rule_number == "21" and cit.page_number == 37
+    assert cit.excerpt == "Rs. 10.00 per square meter of the … built up area."
+
+
 def test_unsupported_numbers_detected(citation_validator):
     evidence = [FRONT_ROW_3_6]
     assert citation_validator.unsupported_numbers("The front open space is 3.6 meters.", evidence) == []

@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, CornerDownLeft, Sparkles, AlertCircle } from 'lucide-react';
 import { translations } from '../i18n/translations';
+import AttachmentPicker from './AttachmentPicker';
+import VoiceInputButton from './VoiceInputButton';
 
 export default function ChatInput({ language, onSendMessage, isLoading }) {
   const [inputText, setInputText] = useState('');
   const [validationError, setValidationError] = useState('');
+  const [file, setFile] = useState(null);
   const textareaRef = useRef(null);
   const t = translations[language];
 
@@ -16,10 +19,10 @@ export default function ChatInput({ language, onSendMessage, isLoading }) {
     }
   }, [inputText]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e, spokenText = null) => {
     if (e) e.preventDefault();
-    const trimmed = inputText.trim();
-    if (!trimmed) {
+    const trimmed = (spokenText ?? inputText).trim();
+    if (!trimmed && !file) {
       setValidationError(t.errorEmpty);
       if (textareaRef.current) textareaRef.current.focus();
       return;
@@ -28,8 +31,9 @@ export default function ChatInput({ language, onSendMessage, isLoading }) {
     if (isLoading) return; // Prevent duplicate submission
 
     setValidationError('');
-    onSendMessage(trimmed);
+    onSendMessage(trimmed, file);
     setInputText('');
+    setFile(null);
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
@@ -63,7 +67,7 @@ export default function ChatInput({ language, onSendMessage, isLoading }) {
                 if (validationError) setValidationError('');
               }}
               onKeyDown={handleKeyDown}
-              placeholder={t.inputPlaceholder}
+              placeholder={file ? t.attachPlaceholder : t.inputPlaceholder}
               disabled={isLoading}
               className="chat-textarea"
               aria-label="Enter question regarding MP building bylaws"
@@ -71,7 +75,7 @@ export default function ChatInput({ language, onSendMessage, isLoading }) {
 
             <button
               type="submit"
-              disabled={isLoading || !inputText.trim()}
+              disabled={isLoading || (!inputText.trim() && !file)}
               className="btn-primary chat-send-btn"
               title={t.inputButtonText}
               aria-label="Send inquiry"
@@ -82,6 +86,24 @@ export default function ChatInput({ language, onSendMessage, isLoading }) {
                 <Send size={16} />
               )}
             </button>
+          </div>
+
+          <div className="chat-input-attach-row">
+            <AttachmentPicker
+              language={language}
+              file={file}
+              onFileChange={setFile}
+              onError={setValidationError}
+              disabled={isLoading}
+            />
+            <VoiceInputButton
+              language={language}
+              disabled={isLoading}
+              onInterim={setInputText}
+              onFinal={(spokenText) => handleSubmit(null, spokenText)}
+              onError={setValidationError}
+            />
+            {file && <span className="attach-privacy-note">{t.attachPrivacy}</span>}
           </div>
 
           <div className="chat-input-hints-bar">

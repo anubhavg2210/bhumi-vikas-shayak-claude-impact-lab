@@ -12,6 +12,12 @@ numpy>=1.24.0
 openai>=3.28,<4
 # Only needed when LLM_PROVIDER=anthropic (requires Python >= 3.10)
 anthropic>=1.13.0
+# Document upload: PDF text layer, PDF page rendering for OCR, image decoding (imported lazily in document_reader.py)
+pypdf>=5.0.0
+pypdfium2>=4.30.0
+pillow>=10.0.0
+# Multipart form parsing for the /api/documents/analyze upload route (FastAPI needs it at import time)
+python-multipart>=0.0.9
 
 # Tests
 pytest>=8.0.0

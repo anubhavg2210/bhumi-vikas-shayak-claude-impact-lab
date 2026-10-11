@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BookOpen, FileText, ExternalLink, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import { translations } from '../i18n/translations';
+import { formatRuleLabel } from '../services/citationFormat';
 
 export default function CitationCard({ citation, index, language, onInspectCitation }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -8,11 +9,12 @@ export default function CitationCard({ citation, index, language, onInspectCitat
 
   const {
     document_title = 'Madhya Pradesh Bhumi Vikas Niyam, 2012',
-    rule_number = 'Rule Provision',
+    rule_number,
     page_number,
     excerpt = '',
     source_url
   } = citation;
+  const ruleLabel = formatRuleLabel(rule_number, language);
 
   // Decide if excerpt is long and worth collapsing/expanding
   const isLongExcerpt = excerpt.length > 220;
@@ -26,7 +28,7 @@ export default function CitationCard({ citation, index, language, onInspectCitat
           <span className="citation-index">#{index + 1}</span>
           <span className="rule-badge">
             <BookOpen size={13} />
-            <span>{rule_number}</span>
+            <span>{ruleLabel}</span>
           </span>
           {page_number && (
             <span className="page-badge">

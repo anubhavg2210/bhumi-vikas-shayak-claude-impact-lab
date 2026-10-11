@@ -10,6 +10,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Outfit:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Apply the saved or OS colour theme before first paint to avoid a light flash -->
+    <script>
+      try {
+        var savedTheme = localStorage.getItem('bvs_theme');
+        document.documentElement.dataset.theme = savedTheme === 'dark' || savedTheme === 'light'
+          ? savedTheme
+          : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

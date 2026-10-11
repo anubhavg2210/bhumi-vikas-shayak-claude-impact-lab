@@ -177,6 +177,39 @@ async def test_rate_limit_is_retried_by_sdk_then_reported(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_long_retry_after_fails_fast(monkeypatch):
+    # Cerebras sends retry-after ~57 s when a per-minute quota is exhausted: do not stall the user.
+    monkeypatch.setattr(settings, "CEREBRAS_MAX_RETRIES", 2)
+    provider, rec = make_provider(json_response({"message": "quota"}, status=429, headers={"retry-after": "57"}))
+    started = __import__("time").monotonic()
+    with pytest.raises(LLMProviderError) as ei:
+        await provider.generate_response("s", "u")
+    assert ei.value.reason == "rate_limited"
+    assert "not waiting" in str(ei.value)
+    assert len(rec.requests) == 1
+    assert __import__("time").monotonic() - started < 2
+
+
+@pytest.mark.asyncio
+async def test_transient_server_error_then_success(monkeypatch):
+    monkeypatch.setattr(settings, "CEREBRAS_MAX_RETRIES", 2)
+    replies = iter([httpx2.Response(503, json={"message": "busy"}, headers={"retry-after-ms": "1"}),
+                    httpx2.Response(200, json=completion('{"answer": "ok"}'))])
+    provider, rec = make_provider(lambda request: next(replies))
+    assert await provider.generate_response("s", "u") == '{"answer": "ok"}'
+    assert len(rec.requests) == 2
+
+
+@pytest.mark.asyncio
+async def test_non_retryable_errors_are_not_retried(monkeypatch):
+    monkeypatch.setattr(settings, "CEREBRAS_MAX_RETRIES", 2)
+    provider, rec = make_provider(json_response({"message": "bad key"}, status=401))
+    with pytest.raises(LLMProviderError):
+        await provider.generate_response("s", "u")
+    assert len(rec.requests) == 1
+
+
+@pytest.mark.asyncio
 async def test_timeout():
     def raise_timeout(request):
         raise httpx2.ReadTimeout("timed out", request=request)
@@ -331,6 +364,31 @@ async def test_invalid_citations_are_rejected(cerebras_rag, bad_citation):
 
 
 @pytest.mark.asyncio
+async def test_passages_carry_their_heading_context(cerebras_rag):
+    # "Rs 1.00 per Square meter" is the *application* fee (Rule 21(2)); the heading that says so sits
+    # just before the chunk. It must reach the model, and quoting it must be allowed.
+    fee_q = "What is the fee for building permission for a residential house?"
+    heading = "(2) Application Fee: Application shall be accompanied by the fees which shall be as under"
+    svc, rec = cerebras_rag(scripted_cerebras(lambda req: {
+        "answer": 'Rule 21(2) lists an application fee: "Rs 1.00 per Square meter".', "confidence": "medium",
+        "insufficient_evidence": False,
+        "citations": [{"passage_id": passage_containing(req, heading), "quote": heading}],
+    }))
+    res = await svc.answer_question(ChatRequest(question=fee_q))
+    user_prompt = json.loads(rec.requests[0].content)["messages"][1]["content"]
+    assert "[Preceding text]" in user_prompt and "Application Fee" in user_prompt
+    assert len(passages_in(rec.requests[0])) == settings.MAX_RETRIEVAL_CHUNKS
+    assert res.citations and res.citations[0].rule_number == "21" and res.citations[0].page_number == 35
+
+
+@pytest.mark.asyncio
+async def test_permission_fee_table_is_retrieved(retriever):
+    results = retriever.retrieve("What is the fee for building permission for a residential house?",
+                                 top_k=settings.MAX_RETRIEVAL_CHUNKS)
+    assert any("10.00 per square meter" in " ".join(r.text.split()) for r in results)
+
+
+@pytest.mark.asyncio
 async def test_model_supplied_metadata_is_ignored(cerebras_rag):
     svc, _ = cerebras_rag(scripted_cerebras(lambda req: {
         "answer": "3.6 meters.", "confidence": "high", "insufficient_evidence": False,
@@ -382,11 +440,36 @@ async def test_model_reports_insufficient_evidence(cerebras_rag):
 async def test_provider_failure_returns_clear_unavailable_response(cerebras_rag, status):
     svc, _ = cerebras_rag(json_response({"message": f"error mentioning {TEST_KEY}"}, status=status))
     res = await svc.answer_question(ChatRequest(question=FRONT_Q))
-    assert res.answer.startswith("The AI answer service is currently unavailable.")
+    expected = ("The AI service has reached its usage limit for the moment" if status == 429
+                else "The AI answer service is currently unavailable.")
+    assert res.answer.startswith(expected)
     assert res.confidence.value == "low"
     assert TEST_KEY not in res.answer
     # Only verified source passages are returned; nothing generated.
     assert res.citations and all(c.rule_number == "56" for c in res.citations)
+
+
+@pytest.mark.parametrize("raw,clean", [
+    ("Rule 12 states the rule (passage id 5). Next.", "Rule 12 states the rule. Next."),
+    ("See Rule 6 (see passage 2) and Rule 12 (passages 3 and 4).", "See Rule 6 and Rule 12."),
+    ('It is not permitted【1,"No deviation from the sanctioned plan', "It is not permitted"),
+    ("Valid for three years【1】 and renewable【2†L3】.", "Valid for three years and renewable."),
+    ("नियम 56 के अनुसार 3 मीटर【1】।", "नियम 56 के अनुसार 3 मीटर।"),
+])
+def test_internal_references_are_removed(raw, clean):
+    from backend.app.services.rag_service import RAGService
+    assert RAGService._strip_internal_references(raw) == clean
+
+
+@pytest.mark.asyncio
+async def test_model_reference_markers_are_stripped(cerebras_rag):
+    svc, _ = cerebras_rag(scripted_cerebras(lambda req: {
+        "answer": "The front open space is 3.6 meters【1】 for this street width【3†L2】.",
+        "confidence": "high", "insufficient_evidence": False,
+        "citations": [{"passage_id": passage_containing(req, FRONT_ROW), "quote": FRONT_ROW}],
+    }))
+    res = await svc.answer_question(ChatRequest(question=FRONT_Q))
+    assert res.answer == "The front open space is 3.6 meters for this street width."
 
 
 @pytest.mark.asyncio

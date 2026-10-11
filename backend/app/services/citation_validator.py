@@ -26,6 +26,50 @@ _NUMBER_RE = re.compile(
 class ValidationReport:
     citations: List[Citation] = field(default_factory=list)
     rejected: int = 0
+    stitched: int = 0  # citations accepted as ordered verbatim fragments (flattened tables)
+
+
+MAX_FRAGMENTS = 3
+MIN_FRAGMENT_WORDS = 3
+MAX_SPAN_RATIO = 1.8
+
+
+def match_fragments(quote: str, source: str) -> Optional[List[str]]:
+    """Split `quote` into at most 3 verbatim fragments of `source`, in source order and close together.
+
+    For flattened two-column tables, where the source interleaves cells (e.g. "Rs. 10.00 per square
+    meter of the exclusively for residence. built up area.") and a model quotes one cell
+    ("Rs. 10.00 per square meter of the built up area."). Every word of the quote must be covered by
+    a fragment that occurs verbatim, so no figure can change. Returns None if it cannot be matched.
+    """
+    words = quote.split()
+    norm_source = normalize_text(source)
+    fragments: List[str] = []
+    i, cursor, first_start, last_end = 0, 0, None, 0
+    while i < len(words):
+        best_j, best_pos = None, -1
+        for j in range(len(words), i, -1):  # longest verbatim run starting at word i
+            pos = norm_source.find(normalize_text(" ".join(words[i:j])), cursor)
+            if pos != -1:
+                best_j, best_pos = j, pos
+                break
+        if best_j is None:
+            return None
+        piece = " ".join(words[i:best_j])
+        if best_j - i < MIN_FRAGMENT_WORDS:
+            return None
+        fragments.append(piece)
+        if len(fragments) > MAX_FRAGMENTS:
+            return None
+        first_start = best_pos if first_start is None else first_start
+        last_end = best_pos + len(normalize_text(piece))
+        cursor = last_end
+        i = best_j
+    if len(fragments) < 2:
+        return None  # a single fragment would have matched verbatim already
+    if (last_end - first_start) > MAX_SPAN_RATIO * len(normalize_text(quote)):
+        return None
+    return fragments
 
 
 def clip_passage(text: str, limit: int = 700) -> str:
@@ -192,22 +236,38 @@ class CitationValidator:
                 report.rejected += 1
                 continue
             needle = normalize_text(quote)
-            passage = next((p for p in candidates if needle in normalize_text(p.text)), None)
+            # A quote may come from the passage or from its lead-in context (both verbatim source text).
+            passage = next(
+                (p for p in candidates
+                 if needle in normalize_text(p.text) or needle in normalize_text(f"{getattr(p, 'context', '')}\n{p.text}")),
+                None,
+            )
+            excerpt = quote
+            if passage is None:
+                # Flattened tables: accept a quote made of a few close, ordered, verbatim fragments,
+                # and show exactly those fragments (joined by "…") rather than the reassembled text.
+                for p in candidates:
+                    fragments = match_fragments(quote, f"{getattr(p, 'context', '')}\n{p.text}")
+                    if fragments:
+                        passage, excerpt = p, " … ".join(fragments)
+                        report.stitched += 1
+                        break
             if passage is None:
                 logger.warning(f"Citation rejected: quote not found verbatim in the retrieved passage(s): '{quote[:60]}'")
                 report.rejected += 1
                 continue
 
-            key = (passage.rule_number, needle)
+            key = (passage.rule_number, normalize_text(excerpt))
             if key in seen:
                 continue
             seen.add(key)
-            page = self.doc_store.resolve_page_for_text(passage.rule_number, quote) or passage.page_number
+            page_probe = excerpt.split(" … ")[0]
+            page = self.doc_store.resolve_page_for_text(passage.rule_number, page_probe) or passage.page_number
             report.citations.append(Citation(
                 document_title=settings.DOCUMENT_TITLE,
                 rule_number=passage.rule_number,
                 page_number=page,
-                excerpt=quote,
+                excerpt=excerpt,
             ))
         return report
 

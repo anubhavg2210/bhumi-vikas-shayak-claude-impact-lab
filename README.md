@@ -30,13 +30,14 @@ Runs the frontend application at: `http://localhost:5173/`
 ### 2. Backend Setup (FastAPI + Python)
 Detailed instructions in [backend/README.md](backend/README.md) and [backend/API_CONTRACT.md](backend/API_CONTRACT.md).
 
+Run these from the **repository root**: the backend's imports are `backend.app...`, so it does not start from inside `backend/`.
+
 ```bash
-cd backend
 python -m venv .venv
 source .venv/bin/activate  # Or on Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env
-python -m backend.app.main
+cp backend/.env.example backend/.env   # then add CEREBRAS_API_KEY
+uvicorn backend.app.main:app --reload --port 8000
 ```
 
 Runs the backend API at: `http://localhost:8000` (API Docs at `http://localhost:8000/docs`).
@@ -45,6 +46,17 @@ Runs the backend API at: `http://localhost:8000` (API Docs at `http://localhost:
 
 ## 🔌 API Integration
 
-Frontend connects to the backend at `POST /api/chat`:
-- Configured via `VITE_API_BASE_URL` in `frontend/.env` (default: `http://localhost:8000`).
-- Supports automatic fallback to verified offline mock regulatory data if the backend is offline.
+Frontend connects to the backend at `POST /api/chat` (and `POST /api/documents/analyze` for uploads):
+- In development the Vite dev server proxies `/api` and `/health` to the backend (`BACKEND_URL`, default `http://127.0.0.1:8000`); set `VITE_API_BASE_URL` to call a backend on another origin.
+- If the backend is unreachable the chat shows a connection error with **Retry**. Mock data is used only when Mock Mode is switched on in the header.
+
+---
+
+## 🚀 Deploying the backend (Render)
+
+| Setting | Value |
+|---|---|
+| Root Directory | *(empty: repository root)* |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `uvicorn backend.app.main:app --host 0.0.0.0 --port $PORT` |
+| Environment | `LLM_PROVIDER=cerebras`, `CEREBRAS_API_KEY=...` (`backend/.env` is not committed) |
