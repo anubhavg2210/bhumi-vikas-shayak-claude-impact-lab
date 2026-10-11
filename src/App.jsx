@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Header from './components/Header';
 import RegulatoryNoticeBanner from './components/RegulatoryNoticeBanner';
 import DashboardHero from './components/DashboardHero';
@@ -8,6 +8,7 @@ import ChatInput from './components/ChatInput';
 import CitationViewerModal from './components/CitationViewerModal';
 import { sendChatQuery, analyzeDocument } from './services/chatApi';
 import { translations } from './i18n/translations';
+import { speak, stopSpeaking, isSpeechSynthesisSupported } from './services/speech';
 import './App.css';
 
 export default function App() {
@@ -42,11 +43,34 @@ export default function App() {
   // 5. Active citation for the modal viewer
   const [selectedCitation, setSelectedCitation] = useState(null);
 
+  // 6. Colour theme: saved choice, else the OS preference
+  const [theme, setTheme] = useState(() => {
+    const stored = localStorage.getItem('bvs_theme');
+    if (stored === 'dark' || stored === 'light') return stored;
+    return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
+  // 7. Spoken answers: mute preference and the timestamp of the answer being read aloud
+  const canSpeak = isSpeechSynthesisSupported();
+  const [isMuted, setIsMuted] = useState(() => localStorage.getItem('bvs_muted') === 'true');
+  const [speakingKey, setSpeakingKey] = useState(null);
+  // Read inside the async send handler, where the mute state may change mid-request.
+  const isMutedRef = useRef(isMuted);
+
   // Sync language to local storage
   useEffect(() => {
     localStorage.setItem('bvs_language', language);
     document.documentElement.lang = language;
   }, [language]);
+
+  // Apply theme to the document
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem('bvs_theme', theme);
+  }, [theme]);
+
+  // Stop reading aloud when the language changes or the app unmounts
+  useEffect(() => stopSpeaking, [language]);
 
   // Sync messages to session storage
   useEffect(() => {
@@ -66,7 +90,38 @@ export default function App() {
     });
   }, []);
 
-  // Handle submitting a question (either from hero input, example cards, or chat input)
+  const handleToggleTheme = useCallback(() => {
+    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
+
+  const handleToggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      localStorage.setItem('bvs_muted', String(next));
+      isMutedRef.current = next;
+      if (next) stopSpeaking();
+      return next;
+    });
+  }, []);
+
+  const speakMessage = useCallback((message) => {
+    const started = speak(message.content, message.language || language, {
+      onEnd: () => setSpeakingKey((key) => (key === message.timestamp ? null : key))
+    });
+    setSpeakingKey(started ? message.timestamp : null);
+  }, [language]);
+
+  // Listen / Stop button on an answer
+  const handleToggleSpeak = useCallback((message) => {
+    if (speakingKey === message.timestamp) {
+      stopSpeaking();
+    } else {
+      speakMessage(message);
+    }
+  }, [speakingKey, speakMessage]);
+
+  // Handle submitting a question (either from hero input, example cards, or chat input).
+  // Every answer is read aloud unless muted.
   const handleSendMessage = useCallback(
     async (questionText, file = null) => {
       const text = (questionText || '').trim();
@@ -79,11 +134,13 @@ export default function App() {
         timestamp: new Date().toISOString()
       };
 
+      stopSpeaking();
       setMessages((prev) => [...prev, userMessage]);
       setLastQuery(text);
       setLastFile(file);
       setIsLoading(true);
 
+      let replyMessage;
       try {
         if (file && isMockMode) {
           throw new Error(translations[language].documentNeedsLive);
@@ -95,6 +152,7 @@ export default function App() {
         const assistantMessage = {
           role: 'assistant',
           content: response.answer,
+          language: response.language || language,
           citations: response.citations || [],
           confidence: response.confidence || 'medium',
           insufficient_evidence: Boolean(response.insufficient_evidence),
@@ -105,6 +163,7 @@ export default function App() {
           timestamp: new Date().toISOString()
         };
 
+        replyMessage = assistantMessage;
         setMessages((prev) => [...prev, assistantMessage]);
       } catch (error) {
         console.error('Error during chat query:', error);
@@ -124,16 +183,22 @@ export default function App() {
         const errorMessage = {
           role: 'assistant',
           content: errorMessageText,
+          language,
           isError: true,
           timestamp: new Date().toISOString()
         };
 
+        replyMessage = errorMessage;
         setMessages((prev) => [...prev, errorMessage]);
       } finally {
         setIsLoading(false);
       }
+
+      if (!isMutedRef.current) {
+        speakMessage(replyMessage);
+      }
     },
-    [isLoading, language, isMockMode]
+    [isLoading, language, isMockMode, speakMessage]
   );
 
   // Retry query handler
@@ -152,6 +217,7 @@ export default function App() {
 
   // Clear session to return to fresh Dashboard
   const handleClearSession = useCallback(() => {
+    stopSpeaking();
     setMessages([]);
     setLastQuery('');
     setLastFile(null);
@@ -168,6 +234,11 @@ export default function App() {
         isMockMode={isMockMode}
         onToggleMockMode={handleToggleMockMode}
         hasMessages={messages.length > 0}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+        canSpeak={canSpeak}
+        isMuted={isMuted}
+        onToggleMute={handleToggleMute}
       />
 
       {/* Statutory Coverage Notice Banner */}
@@ -198,6 +269,9 @@ export default function App() {
               language={language}
               onInspectCitation={setSelectedCitation}
               onRetry={handleRetry}
+              canSpeak={canSpeak && !isMuted}
+              speakingKey={speakingKey}
+              onToggleSpeak={handleToggleSpeak}
             />
             <ChatInput
               language={language}

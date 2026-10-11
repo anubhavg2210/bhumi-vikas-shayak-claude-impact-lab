@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, ShieldCheck, Calendar, Info, AlertCircle, RotateCcw, Paperclip } from 'lucide-react';
+import { User, ShieldCheck, Calendar, Info, AlertCircle, RotateCcw, Paperclip, Volume2, Square } from 'lucide-react';
 import CitationCard from './CitationCard';
 import InsufficientEvidenceAlert from './InsufficientEvidenceAlert';
 import DocumentReadSummary from './DocumentReadSummary';
@@ -9,7 +9,10 @@ export default function ChatMessage({
   message,
   language,
   onInspectCitation,
-  onRetry
+  onRetry,
+  canSpeak,
+  isSpeaking,
+  onToggleSpeak
 }) {
   const t = translations[language];
   const { role, content, citations = [], confidence, insufficient_evidence, document_coverage_date, isError, isMockFallback,
@@ -134,6 +137,18 @@ export default function ChatMessage({
           </div>
 
           <div className="assistant-badges">
+            {canSpeak && content && (
+              <button
+                type="button"
+                className={`btn-outline listen-btn ${isSpeaking ? 'is-speaking' : ''}`}
+                onClick={onToggleSpeak}
+                aria-label={isSpeaking ? t.listenStop : t.listenAnswer}
+                aria-pressed={isSpeaking}
+              >
+                {isSpeaking ? <Square size={12} /> : <Volume2 size={13} />}
+                <span>{isSpeaking ? t.listenStop : t.listenAnswer}</span>
+              </button>
+            )}
             {getConfidenceBadge()}
             {document_coverage_date && (
               <span className="coverage-date-badge" title="Verified against database date">

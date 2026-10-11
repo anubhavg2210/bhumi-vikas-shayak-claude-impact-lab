@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, CornerDownLeft, Sparkles, AlertCircle } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import AttachmentPicker from './AttachmentPicker';
+import VoiceInputButton from './VoiceInputButton';
 
 export default function ChatInput({ language, onSendMessage, isLoading }) {
   const [inputText, setInputText] = useState('');
@@ -18,9 +19,9 @@ export default function ChatInput({ language, onSendMessage, isLoading }) {
     }
   }, [inputText]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = (e, spokenText = null) => {
     if (e) e.preventDefault();
-    const trimmed = inputText.trim();
+    const trimmed = (spokenText ?? inputText).trim();
     if (!trimmed && !file) {
       setValidationError(t.errorEmpty);
       if (textareaRef.current) textareaRef.current.focus();
@@ -94,6 +95,13 @@ export default function ChatInput({ language, onSendMessage, isLoading }) {
               onFileChange={setFile}
               onError={setValidationError}
               disabled={isLoading}
+            />
+            <VoiceInputButton
+              language={language}
+              disabled={isLoading}
+              onInterim={setInputText}
+              onFinal={(spokenText) => handleSubmit(null, spokenText)}
+              onError={setValidationError}
             />
             {file && <span className="attach-privacy-note">{t.attachPrivacy}</span>}
           </div>

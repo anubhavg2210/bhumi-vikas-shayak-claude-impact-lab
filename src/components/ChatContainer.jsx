@@ -8,7 +8,10 @@ export default function ChatContainer({
   isLoading,
   language,
   onInspectCitation,
-  onRetry
+  onRetry,
+  canSpeak,
+  speakingKey,
+  onToggleSpeak
 }) {
   const messagesEndRef = useRef(null);
   const t = translations[language];
@@ -49,6 +52,9 @@ export default function ChatContainer({
               language={language}
               onInspectCitation={onInspectCitation}
               onRetry={() => onRetry(index)}
+              canSpeak={canSpeak}
+              isSpeaking={speakingKey === msg.timestamp}
+              onToggleSpeak={() => onToggleSpeak(msg)}
             />
           ))}
 

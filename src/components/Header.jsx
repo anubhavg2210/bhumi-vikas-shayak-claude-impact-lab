@@ -1,5 +1,5 @@
 import React from 'react';
-import { Languages, RotateCcw, Server, Cpu, ExternalLink } from 'lucide-react';
+import { Languages, RotateCcw, Server, Cpu, ExternalLink, Moon, Sun, Volume2, VolumeX } from 'lucide-react';
 import { translations } from '../i18n/translations';
 
 export default function Header({
@@ -9,7 +9,12 @@ export default function Header({
   isMockMode,
   onToggleMockMode,
   hasMessages,
-  onOpenCoverageNotice
+  onOpenCoverageNotice,
+  theme,
+  onToggleTheme,
+  canSpeak,
+  isMuted,
+  onToggleMute
 }) {
   const t = translations[language];
 
@@ -67,6 +72,31 @@ export default function Header({
           >
             <Languages size={15} />
             <span className="lang-target-label">{t.langToggle}</span>
+          </button>
+
+          {/* Mute spoken answers */}
+          {canSpeak && (
+            <button
+              type="button"
+              className={`btn-outline icon-toggle mute-toggle ${isMuted ? 'is-muted' : ''}`}
+              onClick={onToggleMute}
+              title={isMuted ? t.unmuteVoice : t.muteVoice}
+              aria-label={isMuted ? t.unmuteVoice : t.muteVoice}
+              aria-pressed={isMuted}
+            >
+              {isMuted ? <VolumeX size={16} /> : <Volume2 size={16} />}
+            </button>
+          )}
+
+          {/* Light / dark theme */}
+          <button
+            type="button"
+            className="btn-outline icon-toggle theme-toggle"
+            onClick={onToggleTheme}
+            title={theme === 'dark' ? t.themeLight : t.themeDark}
+            aria-label={theme === 'dark' ? t.themeLight : t.themeDark}
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
 
           {/* New Inquiry / Reset (visible if conversation is active) */}

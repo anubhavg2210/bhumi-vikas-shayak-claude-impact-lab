@@ -127,7 +127,25 @@ export const translations = {
     documentMethodPlain: "Plain text",
     documentOcrWarning: "Read by AI-based OCR, which can misread text. Check figures against your original document.",
     documentQuotesHeading: "From your document (verified against the extracted text)",
-    attachmentLabel: "Attached"
+    attachmentLabel: "Attached",
+
+    // Voice & theme
+    voiceStart: "Speak",
+    voiceStartHint: "Ask by voice in English. Your speech is converted to text by your browser's speech service.",
+    voiceStop: "Stop listening",
+    voiceListening: "Listening...",
+    voiceErrorPermission: "Microphone access was blocked. Allow the microphone in your browser to ask by voice.",
+    voiceErrorNoSpeech: "No words were recognised. Tap Speak, talk clearly into the microphone, and try again.",
+    voiceErrorNoMic: "No working microphone was found. Connect one, or allow microphone access in Windows Settings > Privacy & security > Microphone.",
+    voiceErrorNetwork: "Could not reach your browser's speech recognition service. Check your internet connection; voice input works in Chrome and Edge (Brave and some other browsers block it).",
+    voiceErrorLanguage: "Your browser cannot recognise speech in this language. Try Chrome or Edge.",
+    voiceErrorGeneric: "Voice input is not available right now. Please type your question.",
+    listenAnswer: "Listen",
+    listenStop: "Stop",
+    muteVoice: "Mute spoken answers",
+    unmuteVoice: "Unmute spoken answers",
+    themeDark: "Switch to dark mode",
+    themeLight: "Switch to light mode"
   },
   
   hi: {
@@ -166,6 +184,24 @@ export const translations = {
     documentOcrWarning: "एआई-आधारित OCR से पढ़ा गया; पाठ गलत पढ़ा जा सकता है। आंकड़ों का मिलान अपने मूल दस्तावेज़ से करें।",
     documentQuotesHeading: "आपके दस्तावेज़ से (निकाले गए पाठ से सत्यापित)",
     attachmentLabel: "संलग्न",
+
+    // Voice & theme
+    voiceStart: "बोलें",
+    voiceStartHint: "हिन्दी में बोलकर प्रश्न पूछें। आपकी आवाज़ को ब्राउज़र की वाक् सेवा द्वारा पाठ में बदला जाता है।",
+    voiceStop: "सुनना बंद करें",
+    voiceListening: "सुन रहा है...",
+    voiceErrorPermission: "माइक्रोफ़ोन की अनुमति नहीं मिली। बोलकर पूछने के लिए ब्राउज़र में माइक्रोफ़ोन की अनुमति दें।",
+    voiceErrorNoSpeech: "कोई शब्द पहचाने नहीं गए। बोलें दबाएं, माइक्रोफ़ोन में साफ़ बोलें और पुनः प्रयास करें।",
+    voiceErrorNoMic: "कोई चालू माइक्रोफ़ोन नहीं मिला। माइक्रोफ़ोन जोड़ें, या Windows Settings > Privacy & security > Microphone में अनुमति दें।",
+    voiceErrorNetwork: "ब्राउज़र की वाक् पहचान सेवा से संपर्क नहीं हो सका। इंटरनेट कनेक्शन जांचें; आवाज़ से प्रश्न Chrome और Edge में काम करता है (Brave आदि ब्राउज़र इसे रोकते हैं)।",
+    voiceErrorLanguage: "आपका ब्राउज़र इस भाषा में वाक् पहचान नहीं कर सकता। Chrome या Edge आज़माएं।",
+    voiceErrorGeneric: "अभी आवाज़ से प्रश्न पूछना उपलब्ध नहीं है। कृपया प्रश्न टाइप करें।",
+    listenAnswer: "सुनें",
+    listenStop: "रोकें",
+    muteVoice: "बोले गए उत्तर म्यूट करें",
+    unmuteVoice: "बोले गए उत्तर अनम्यूट करें",
+    themeDark: "डार्क मोड चालू करें",
+    themeLight: "लाइट मोड चालू करें",
     mockDataWarning: "डेमो डेटा (मॉक मोड): यह नमूना उत्तर नियमों से तैयार नहीं किया गया है और इसके संदर्भ सत्यापित नहीं हैं। वास्तविक उत्तर के लिए लाइव एपीआई पर स्विच करें।",
     
     // Regulatory Banner

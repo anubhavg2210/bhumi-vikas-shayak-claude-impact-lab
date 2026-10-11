@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, Scale, BookMarked, Globe, CornerDownLeft } from 'lucide-react';
 import { translations } from '../i18n/translations';
 import AttachmentPicker from './AttachmentPicker';
+import VoiceInputButton from './VoiceInputButton';
 
 export default function DashboardHero({ language, onSubmitQuery, isLoading }) {
   const [query, setQuery] = useState('');
@@ -26,6 +27,13 @@ export default function DashboardHero({ language, onSubmitQuery, isLoading }) {
     }
     setValidationError('');
     onSubmitQuery(query.trim(), file);
+  };
+
+  // A spoken question is sent straight away.
+  const handleVoiceQuestion = (spokenText) => {
+    setQuery(spokenText);
+    setValidationError('');
+    onSubmitQuery(spokenText, file);
   };
 
   const handleKeyDown = (e) => {
@@ -86,6 +94,13 @@ export default function DashboardHero({ language, onSubmitQuery, isLoading }) {
                     onFileChange={setFile}
                     onError={setValidationError}
                     disabled={isLoading}
+                  />
+                  <VoiceInputButton
+                    language={language}
+                    disabled={isLoading}
+                    onInterim={setQuery}
+                    onFinal={handleVoiceQuestion}
+                    onError={setValidationError}
                   />
                   <span className="hint-pill">
                     <CornerDownLeft size={12} />
